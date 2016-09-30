@@ -1,0 +1,12 @@
+addons/decimal_precision
+addons/web
+addons/web_calendar
+addons/web_diagram
+addons/web_editor
+addons/web_kanban
+addons/web_kanban_gauge
+addons/web_tour
+odoo
+COPYRIGHT
+LICENSE
+odoo-bin
