@@ -470,11 +470,12 @@ var ListView = View.extend({
                 self.records.remove(record);
                 return;
             }
-            _.each(values, function (value, key) {
+            // _.each is broken if a field "length" is present
+            for (var key in values) {
                 if (fields[key] && fields[key].type === 'many2many')
                     record.set(key + '__display', false, {silent: true});
-                record.set(key, value, {silent: true});            
-            });
+                record.set(key, values[key], {silent: true});
+            }
             record.trigger('change', record);
 
             /* When a record is reloaded, there is a rendering lag because of the addition/suppression of 
@@ -1097,7 +1098,7 @@ ListView.List = Class.extend({
             }
         }
         return column.format(record.toForm().data, {
-            model: this.model,
+            model: this.dataset.model,
             id: record.get('id')
         });
     },
@@ -1705,7 +1706,6 @@ var Column = Class.extend({
             id: id,
             tag: tag
         });
-
         this.modifiers = attrs.modifiers ? JSON.parse(attrs.modifiers) : {};
         delete attrs.modifiers;
         _.extend(this, attrs);
@@ -1732,10 +1732,14 @@ var Column = Class.extend({
         if (this.type !== 'integer' && this.type !== 'float' && this.type !== 'monetary') {
             return {};
         }
-        var aggregation_func = this['group_operator'] || 'sum';
-        if (!(aggregation_func in this)) {
+
+        var aggregation_func = (this.sum && 'sum') || (this.avg && 'avg') ||
+                               (this.max && 'max') || (this.min && 'min');
+
+        if (!aggregation_func) {
             return {};
         }
+
         var C = function (fn, label) {
             this['function'] = fn;
             this.label = label;
