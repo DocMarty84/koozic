@@ -267,7 +267,7 @@ var ListView = View.extend({
     render_buttons: function($node) {
         if (!this.$buttons) {
             this.$buttons = $(QWeb.render("ListView.buttons", {'widget': this}));
-            this.$buttons.find('.o_list_button_add').click(this.proxy('do_add_record'));
+            this.$buttons.on('click', '.o_list_button_add', this.proxy('do_add_record'));
             this.$buttons.appendTo($node);
         }
     },
@@ -554,8 +554,11 @@ var ListView = View.extend({
             if (self.display_nocontent_helper()) {
                 self.no_result();
             } else {
-                // Load previous page if the current one is empty
-                if (self.records.length === 0 && self.dataset.size() > 0) {
+                if (self.records.length && self.current_min === 1) {
+                    // Reload the list view if we delete all the records of the first page
+                    self.reload();
+                } else if (self.records.length && self.dataset.size() > 0) {
+                    // Load previous page if the current one is empty
                     self.pager.previous();
                 }
                 // Reload the list view if we are not on the last page

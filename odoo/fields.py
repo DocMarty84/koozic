@@ -456,13 +456,13 @@ class Field(object):
             if not attrs.get('readonly'):
                 attrs['inverse'] = self._inverse_sparse
 
+        self.set_all_attrs(attrs)
+
         # check for renamed attributes (conversion errors)
         for key1, key2 in RENAMED_ATTRS:
             if key1 in attrs:
                 _logger.warning("Field %s: parameter %r is no longer supported; use %r instead.",
                                 self, key1, key2)
-
-        self.set_all_attrs(attrs)
 
         # prefetch only stored, column, non-manual and non-deprecated fields
         if not (self.store and self.column_type) or self.manual or self.deprecated:
@@ -922,15 +922,15 @@ class Field(object):
         for field in fields:
             for record in records:
                 record._cache[field] = field.convert_to_cache(False, record, validate=False)
-        with records.env.protecting(fields, records):
-            if isinstance(self.compute, basestring):
-                getattr(records, self.compute)()
-            else:
-                self.compute(records)
+        if isinstance(self.compute, basestring):
+            getattr(records, self.compute)()
+        else:
+            self.compute(records)
 
     def compute_value(self, records):
         """ Invoke the compute method on ``records``; the results are in cache. """
-        with records.env.do_in_draft():
+        fields = records._field_computed[self]
+        with records.env.do_in_draft(), records.env.protecting(fields, records):
             try:
                 self._compute_value(records)
             except (AccessError, MissingError):
@@ -986,7 +986,9 @@ class Field(object):
     def determine_draft_value(self, record):
         """ Determine the value of ``self`` for the given draft ``record``. """
         if self.compute:
-            self._compute_value(record)
+            fields = record._field_computed[self]
+            with record.env.protecting(fields, record):
+                self._compute_value(record)
         else:
             null = self.convert_to_cache(False, record, validate=False)
             record._cache[self] = SpecialValue(null)
@@ -1242,6 +1244,13 @@ class Monetary(Field):
                 value = currency.round(float(value or 0.0))
                 return float_precision(value, currency.decimal_places)
         return float(value or 0.0)
+
+    def convert_to_read(self, value, record, use_name_get=True):
+        # float_precision values are not supported in pure XMLRPC
+        return float(value)
+
+    def convert_to_write(self, value, record):
+        return value
 
 
 class _String(Field):
@@ -1566,6 +1575,7 @@ class Datetime(Field):
 class Binary(Field):
     type = 'binary'
     _slots = {
+        'prefetch': False,              # not prefetched by default
         'attachment': False,            # whether value is stored in attachment
     }
 
@@ -1735,6 +1745,14 @@ class Selection(Field):
                 return item[1]
         return False
 
+    def convert_to_column(self, value, record):
+        """ Convert ``value`` from the ``write`` format to the SQL format. """
+        if value is None or value is False:
+            return None
+        if isinstance(value, unicode):
+            return value.encode('utf8')
+        return str(value)
+
 
 class Reference(Selection):
     type = 'reference'
@@ -1882,7 +1900,8 @@ class Many2one(_Relational):
                 return process(value._ids)
             raise ValueError("Wrong value for %s: %r" % (self, value))
         elif isinstance(value, tuple):
-            return process((value[0],))
+            # value is either a pair (id, name), or a tuple of ids
+            return process(value[:1])
         elif isinstance(value, dict):
             return process(record.env[self.comodel_name].new(value)._ids)
         else:
@@ -1956,8 +1975,8 @@ class _RelationalMulti(_Relational):
         if isinstance(value, BaseModel):
             if not validate or (value._name == self.comodel_name):
                 return process(value._ids)
-        elif isinstance(value, list):
-            # value is a list of record ids or commands
+        elif isinstance(value, (list, tuple)):
+            # value is a list/tuple of commands, dicts or record ids
             comodel = record.env[self.comodel_name]
             # determine the value ids; by convention empty on new records
             ids = OrderedSet(record[self.name].ids if record.id else ())
@@ -2385,6 +2404,9 @@ class Many2many(_RelationalMulti):
 class Serialized(Field):
     """ Serialized fields provide the storage for sparse fields. """
     type = 'serialized'
+    _slots = {
+        'prefetch': False,              # not prefetched by default
+    }
     column_type = ('text', 'text')
 
     def convert_to_column(self, value, record):

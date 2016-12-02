@@ -152,11 +152,11 @@ class IrModel(models.Model):
     def write(self, vals):
         if '__last_update' in self._context:
             self = self.with_context({k: v for k, v in self._context.iteritems() if k != '__last_update'})
-        if 'model' in vals:
+        if 'model' in vals and any(rec.model != vals['model'] for rec in self):
             raise UserError(_('Field "Model" cannot be modified on models.'))
-        if 'state' in vals:
+        if 'state' in vals and any(rec.state != vals['state'] for rec in self):
             raise UserError(_('Field "Type" cannot be modified on models.'))
-        if 'transient' in vals:
+        if 'transient' in vals and any(rec.transient != vals['transient'] for rec in self):
             raise UserError(_('Field "Transient Model" cannot be modified on models.'))
         # Filter out operations 4 from field id, because the web client always
         # writes (4,id,False) even for non dirty items.
@@ -435,6 +435,12 @@ class IrModelFields(models.Model):
             model = self.env[record.model]
             field = model._fields[record.name]
             if field.type == 'many2one' and model._field_inverses.get(field):
+                if self._context.get(MODULE_UNINSTALL_FLAG):
+                    # automatically unlink the corresponding one2many field(s)
+                    inverses = self.search([('relation', '=', field.model_name),
+                                            ('relation_field', '=', field.name)])
+                    inverses.unlink()
+                    continue
                 msg = _("The field '%s' cannot be removed because the field '%s' depends on it.")
                 raise UserError(msg % (field, model._field_inverses[field][0]))
 
@@ -713,6 +719,12 @@ class IrModelConstraint(models.Model):
                     _logger.info('Dropped CONSTRAINT %s@%s', name, data.model.model)
 
         self.unlink()
+
+    @api.multi
+    def copy(self, default=None):
+        default = dict(default or {})
+        default['name'] = self.name + '_copy'
+        return super(IrModelConstraint, self).copy(default)
 
 
 class IrModelRelation(models.Model):
