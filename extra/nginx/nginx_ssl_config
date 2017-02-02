@@ -54,16 +54,3 @@ server {
     gzip_types text/css text/less text/plain text/xml application/xml application/json application/javascript;
     gzip on;
 }
-
-# Let's Encrypt:
-# git clone https://github.com/letsencrypt/letsencrypt
-# cd letsencrypt
-# service nginx stop
-# ./letsencrypt-auto certonly -d <your_domain> --rsa-key-size 4096
-# Use cert.pem for ssl_certificate and privkey.pem for ssl_certificate_key
-# Auto renew cert:
-# service nginx stop ; /path/to/letsencrypt-auto renew --no-self-upgrade ; service nginx start
-
-# Additional protection:
-# openssl dhparam -out dh4096.pem 4096
-# To bu used for ssl_dhparam

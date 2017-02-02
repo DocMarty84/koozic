@@ -1,0 +1,13 @@
+[Unit]
+Description=KooZic - Open Source Streaming Software
+Documentation=https://koozic.net/
+After=network.target
+
+[Service]
+User=%i
+ExecStart=/opt/koozic/odoo-bin
+Restart=on-failure
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
