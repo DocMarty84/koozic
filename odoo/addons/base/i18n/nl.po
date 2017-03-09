@@ -1384,7 +1384,7 @@ msgstr ""
 "Personaliseer toegang tot uw Odoo database voor externe gebruikers door portalen aan te maken.\n"
 "================================================================================\n"
 "Een portaal definieert een specifieke gebruikersmenu en toegangsrecht voor het lid. Dit\n"
-"menu kan door andere portaalleden, publieke gebruikers en eender welke andere gebruiker die\n"
+"menu kan door andere portaalleden, openbare gebruikers en eender welke andere gebruiker die\n"
 "toegang heeft tot de technische eigenschappen (bijvoorbeeld de administrator) gezien worden.\n"
 "Elke portaalgebruiker is gelinkt aan een specifieke partner.\n"
 "\n"
@@ -10806,7 +10806,7 @@ msgid ""
 "quotations, supplier bills, etc..."
 msgstr ""
 "Helpt de inkoop-gerelateerde processen te beheren zoals aanvragen van "
-"offertes,  leveranciersrekeningen, enz..."
+"offertes,  leveranciersfacturen, enz..."
 
 #. module: base
 #: model:ir.module.category,description:base.module_category_hr_recruitment
@@ -11729,7 +11729,7 @@ msgstr "Is een leverancier"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_attachment_public
 msgid "Is public document"
-msgstr "Is publiekelijk document"
+msgstr "Is openbaar document"
 
 #. module: base
 #: model:res.country,name:base.im
@@ -14504,7 +14504,7 @@ msgstr "Publiceer uw resellerkanaal"
 #. module: base
 #: model:ir.module.module,summary:base.module_website_customer
 msgid "Publish Your Customer References"
-msgstr "Publiceer uw klantgetuigenissen"
+msgstr "Publiceer uw klant referenties"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_module_module_published_version
@@ -16819,7 +16819,7 @@ msgid ""
 " available to all users."
 msgstr ""
 "De gebruiker waarvoor het filter privé is. Wanneer u dit leeg laat is het "
-"filter publiek en beschikbaar voor alle gebruikers."
+"filter openbaar en beschikbaar voor alle gebruikers."
 
 #. module: base
 #: code:addons/models.py:5631
@@ -18630,9 +18630,9 @@ msgid ""
 "instead.If SSL is needed, an upgrade to Python 2.6 on the server-side should"
 " do the trick."
 msgstr ""
-"Uw OpenERP Server ondersteunt geen SMTP over een SSL verbinding. U kan "
-"daarvoor in de plaats gebruik maken van STARTSSL. Indien SSL noodzakelijk "
-"is, dient u up te graden naar Python 2.6 op de server."
+"Uw Odoo Server ondersteunt geen SMTP over een SSL verbinding. U kan daarvoor"
+" in de plaats gebruik maken van STARTSSL. Indien SSL noodzakelijk is, dient "
+"u up te graden naar Python 2.6 op de server."
 
 #. module: base
 #: code:addons/base/ir/ir_mail_server.py:475

@@ -1992,7 +1992,7 @@ class BaseModel(object):
         prefix_term = lambda prefix, term: ('%s %s' % (prefix, term)) if term else ''
 
         query = """
-            SELECT min(%(table)s.id) AS id, count(%(table)s.id) AS %(count_field)s %(extra_fields)s
+            SELECT min("%(table)s".id) AS id, count("%(table)s".id) AS "%(count_field)s" %(extra_fields)s
             FROM %(from)s
             %(where)s
             %(groupby)s
@@ -2854,6 +2854,11 @@ class BaseModel(object):
             if field.compute:
                 cls._field_computed[field] = group = groups[field.compute]
                 group.append(field)
+        for fields in groups.itervalues():
+            compute_sudo = fields[0].compute_sudo
+            if not all(field.compute_sudo == compute_sudo for field in fields):
+                _logger.warning("%s: inconsistent 'compute_sudo' for computed fields: %s",
+                                self._name, ", ".join(field.name for field in fields))
 
     @api.model
     def _setup_complete(self):
