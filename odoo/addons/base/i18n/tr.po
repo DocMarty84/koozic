@@ -1939,7 +1939,7 @@ msgid ""
 "        "
 msgstr ""
 "\n"
-"Çevrimiçi Etkinlikler"
+"Online Etkinlikler"
 
 #. module: base
 #: model:ir.module.module,description:base.module_web_diagram
@@ -7320,7 +7320,7 @@ msgstr "Dominik Cumhuriyeti - muhasebe"
 #. module: base
 #: selection:ir.actions.todo,state:0
 msgid "Done"
-msgstr "Biten"
+msgstr "Tamamla"
 
 #. module: base
 #: model:res.partner.title,shortcut:base.res_partner_title_doctor
@@ -11497,12 +11497,12 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_website_event_sale
 msgid "Online Event's Tickets"
-msgstr "Çevrimiçi Etkinlik Biletleri"
+msgstr "Online Etkinlik Biletleri"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_website_event
 msgid "Online Events"
-msgstr "Çevrimiçi Etkinlikler"
+msgstr "Online Etkinlikler"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_website_hr_recruitment
