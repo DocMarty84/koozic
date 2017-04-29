@@ -304,9 +304,13 @@ var KanbanView = View.extend({
         return this._super(action);
     },
     has_active_field: function() {
-        return this.fields.active;
+        return this.fields_view.fields.active;
     },
     _is_quick_create_enabled: function() {
+        var group_by_field = this.group_by_field.split(':')[0]
+        if(!_.contains(['char', 'boolean', 'many2one'], this.fields[group_by_field].type)){
+            return false;
+        }
         if (!this.quick_creatable || !this.is_action_enabled('create'))
             return false;
         if (this.fields_view.arch.attrs.quick_create !== undefined)

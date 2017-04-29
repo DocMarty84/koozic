@@ -368,6 +368,15 @@ class BaseModel(object):
                 field_id = cr.fetchone()[0]
                 self._context['todo'].append((20, Fields.browse(field_id).modified, [names]))
 
+        if not self.pool._init:
+            # remove ir.model.fields that are not in self._fields
+            fields = Fields.browse([col['id']
+                                    for name, col in cols.iteritems()
+                                    if name not in self._fields])
+            # add key '_force_unlink' in context to (1) force the removal of the
+            # fields and (2) not reload the registry
+            fields.with_context(_force_unlink=True).unlink()
+
         self.invalidate_cache()
 
     @api.model
@@ -389,7 +398,7 @@ class BaseModel(object):
             This method should only be used for manual fields.
         """
         cls = type(self)
-        field = cls._fields.pop(name)
+        field = cls._fields.pop(name, None)
         if hasattr(cls, name):
             delattr(cls, name)
         return field
@@ -669,7 +678,7 @@ class BaseModel(object):
                 field = cls._fields.get(name)
                 if not field:
                     _logger.warning("method %s.%s: @constrains parameter %r is not a field name", cls._name, attr, name)
-                if not (field.store or field.inverse):
+                elif not (field.store or field.inverse):
                     _logger.warning("method %s.%s: @constrains parameter %r is not writeable", cls._name, attr, name)
             methods.append(func)
 
@@ -1846,7 +1855,7 @@ class BaseModel(object):
                 if ftype == 'many2one':
                     value = value[0]
                 elif ftype in ('date', 'datetime'):
-                    locale = self._context.get('lang', 'en_US')
+                    locale = self._context.get('lang') or 'en_US'
                     fmt = DEFAULT_SERVER_DATETIME_FORMAT if ftype == 'datetime' else DEFAULT_SERVER_DATE_FORMAT
                     tzinfo = None
                     range_start = value
@@ -2759,7 +2768,7 @@ class BaseModel(object):
         cls = type(self)
         cls._setup_done = False
         # a model's base structure depends on its mro (without registry classes)
-        cls._model_cache_key = tuple(c for c in cls.mro() if not getattr(c, 'pool', None))
+        cls._model_cache_key = tuple(c for c in cls.mro() if getattr(c, 'pool', None) is None)
 
     @api.model
     def _setup_base(self, partial):
@@ -2805,7 +2814,7 @@ class BaseModel(object):
             self._add_magic_fields()
             cls._proper_fields = set(cls._fields)
 
-            cls.pool.model_cache[cls._model_cache_key] = cls
+        cls.pool.model_cache[cls._model_cache_key] = cls
 
         # 2. add custom fields
         self._add_manual_fields(partial)
@@ -4379,7 +4388,8 @@ class BaseModel(object):
         """
         self.ensure_one()
         vals = self.copy_data(default)[0]
-        new = self.create(vals)
+        # To avoid to create a translation in the lang of the user, copy_translation will do it
+        new = self.with_context(lang=None).create(vals)
         self.copy_translations(new)
         return new
 

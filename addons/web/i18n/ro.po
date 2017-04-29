@@ -374,7 +374,7 @@ msgstr "Aplică"
 #: code:addons/web/static/src/js/views/list_view.js:289
 #, python-format
 msgid "Archive"
-msgstr "Arhivă"
+msgstr "Arhivează"
 
 #. module: web
 #. openerp-web
@@ -1565,7 +1565,7 @@ msgstr "On"
 #: code:addons/web/static/src/xml/base_common.xml:75
 #, python-format
 msgid "On change:"
-msgstr "La modificare:"
+msgstr "Eveniment modificare:"
 
 #. module: web
 #. openerp-web
@@ -1688,12 +1688,12 @@ msgstr "Vă rugăm selectați câmpurile pentru a salva lista de export..."
 #. module: web
 #: model:ir.ui.view,arch_db:web.menu_secondary
 msgid "Powered by"
-msgstr "Oferit de"
+msgstr "Oferit de "
 
 #. module: web
 #: model:ir.ui.view,arch_db:web.login_layout
 msgid "Powered by <span>Odoo</span>"
-msgstr "Oferit de<span>Odoo</span>"
+msgstr "Oferit de <span>Odoo</span>"
 
 #. module: web
 #. openerp-web
@@ -2399,7 +2399,7 @@ msgstr "Widget:"
 #: code:addons/web/controllers/main.py:474
 #, python-format
 msgid "Wrong login/password"
-msgstr "Parolă sau username introduse greșit"
+msgstr "Parolă sau nume utilizator introduse greșit"
 
 #. module: web
 #. openerp-web
