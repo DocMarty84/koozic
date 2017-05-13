@@ -1,3 +1,6 @@
 [submodule "addons/oomusic"]
 	path = addons/oomusic
 	url = https://github.com/DocMarty84/oomusic
+[submodule "addons/oovideo"]
+	path = addons/oovideo
+	url = https://github.com/DocMarty84/oovideo
