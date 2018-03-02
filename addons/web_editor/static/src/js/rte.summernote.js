@@ -398,7 +398,9 @@ eventHandler.modules.imageDialog.showImageDialog = function ($editable) {
     if (r.sc.tagName && r.sc.childNodes.length) {
         r.sc = r.sc.childNodes[r.so];
     }
-    new widgets.MediaDialog(null, {}, $editable, dom.isImg(r.sc) ? r.sc : null).open();
+    new widgets.MediaDialog(null, {}, $editable, $(r.sc).parents().addBack().filter(function (i, el) {
+        return dom.isImg(el);
+    })[0]).open();
     return new $.Deferred().reject();
 };
 $.summernote.pluginEvents.alt = function (event, editor, layoutInfo, sorted) {
@@ -420,6 +422,9 @@ dom.isImg = function (node) {
 };
 var fn_is_forbidden_node = dom.isForbiddenNode || function () {};
 dom.isForbiddenNode = function (node) {
+    if (node.tagName === "BR") {
+        return false;
+    }
     return fn_is_forbidden_node(node) || $(node).is(".media_iframe_video");
 };
 var fn_is_img_font = dom.isImgFont || function () {};
@@ -454,7 +459,7 @@ $.summernote.pluginEvents.visible = function (event, editor, layoutInfo) {
     if (($node.is('[data-oe-type="html"]') || $node.is('[data-oe-field="arch"]')) &&
         $node.hasClass("o_editable") &&
         !$node[0].children.length &&
-        "h1 h2 h3 h4 h5 h6 p b bold i u code sup strong small pre th td".toUpperCase().indexOf($node[0].nodeName) === -1) {
+        "h1 h2 h3 h4 h5 h6 p b bold i u code sup strong small pre th td label".toUpperCase().indexOf($node[0].nodeName) === -1) {
         var p = $('<p><br/></p>')[0];
         $node.append( p );
         range.createFromNode(p.firstChild).select();
@@ -771,7 +776,7 @@ eventHandler.attach = function (oLayoutInfo, options) {
      * Open Link Dialog on double click on a link/button.
      * Shows a tooltip on click to say to the user he can double click.
      */
-    create_dblclick_feature("a[href], .btn", function () {
+    create_dblclick_feature("a[href], a.btn, button.btn", function () {
         eventHandler.modules.linkDialog.show(oLayoutInfo);
     });
 

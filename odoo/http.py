@@ -629,8 +629,9 @@ class JsonRequest(WebRequest):
             body = json.dumps(response)
 
         return Response(
-                    body, headers=[('Content-Type', mime),
-                                   ('Content-Length', len(body))])
+            body, status=error and error.pop('http_status', 200) or 200,
+            headers=[('Content-Type', mime), ('Content-Length', len(body))]
+        )
 
     def _handle_exception(self, exception):
         """Called within an except block to allow converting exceptions
@@ -639,13 +640,18 @@ class JsonRequest(WebRequest):
         try:
             return super(JsonRequest, self)._handle_exception(exception)
         except Exception:
-            if not isinstance(exception, (odoo.exceptions.Warning, SessionExpiredException, odoo.exceptions.except_orm)):
+            if not isinstance(exception, (odoo.exceptions.Warning, SessionExpiredException,
+                                          odoo.exceptions.except_orm, werkzeug.exceptions.NotFound)):
                 _logger.exception("Exception during JSON request handling.")
             error = {
                     'code': 200,
                     'message': "Odoo Server Error",
                     'data': serialize_exception(exception)
             }
+            if isinstance(exception, werkzeug.exceptions.NotFound):
+                error['http_status'] = 404
+                error['code'] = 404
+                error['message'] = "404: Not Found"
             if isinstance(exception, AuthenticationError):
                 error['code'] = 100
                 error['message'] = "Odoo Session Invalid"
@@ -1504,8 +1510,14 @@ def db_filter(dbs, httprequest=None):
     d, _, r = h.partition('.')
     if d == "www" and r:
         d = r.partition('.')[0]
-    r = odoo.tools.config['dbfilter'].replace('%h', h).replace('%d', d)
-    dbs = [i for i in dbs if re.match(r, i)]
+    if odoo.tools.config['dbfilter']:
+        r = odoo.tools.config['dbfilter'].replace('%h', h).replace('%d', d)
+        dbs = [i for i in dbs if re.match(r, i)]
+    elif odoo.tools.config['db_name']:
+        # In case --db-filter is not provided and --database is passed, Odoo will
+        # use the value of --database as a comma seperated list of exposed databases.
+        exposed_dbs = set(db.strip() for db in odoo.tools.config['db_name'].split(','))
+        dbs = sorted(exposed_dbs.intersection(dbs))
     return dbs
 
 def db_monodb(httprequest=None):

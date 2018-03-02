@@ -296,6 +296,8 @@ var FieldTextHtml = widget.extend({
         var self = this;
         this.$el.closest('.modal-body').css('max-height', 'none');
         this.$iframe = this.$el.find('iframe');
+        // deactivate any button to avoid saving a not ready iframe
+        $('.o_cp_buttons, .o_statusbar_buttons').find('button').addClass('o_disabled').attr('disabled', true);
         this.document = null;
         this.$body = $();
         this.$content = $();
@@ -321,6 +323,8 @@ var FieldTextHtml = widget.extend({
         this.lang = this.lang ? this.lang[1] : this.view.dataset.context.lang;
         this._dirty_flag = false;
         this.render_value();
+        // reactivate all the buttons when the field's content (the iframe) is loaded
+        $('.o_cp_buttons, .o_statusbar_buttons').find('button').removeClass('o_disabled').attr('disabled', false);
         setTimeout(function () {
             self.add_button();
             setTimeout(self.resize,0);
@@ -401,7 +405,19 @@ var FieldTextHtml = widget.extend({
                 var layoutInfo = this.editor.rte.editable().data('layoutInfo');
                 $.summernote.pluginEvents.codeview(undefined, undefined, layoutInfo, false);
             }
+            var $ancestors = this.$iframe.filter(':not(:visible)').parentsUntil(':visible').addBack();
+            var ancestorsStyle = [];
+            // temporarily force displaying iframe (needed for firefox)
+            _.each($ancestors, function (el) {
+                var $el = $(el);
+                ancestorsStyle.unshift($el.attr('style') || null);
+                $el.css({display: 'initial', visibility: 'hidden', height: 1});
+            });
             this.editor.buildingBlock.clean_for_save();
+            _.each($ancestors, function (el) {
+                var $el = $(el);
+                $el.attr('style', ancestorsStyle.pop());
+            });
             this.internal_set_value( this.$content.html() );
         }
     },
