@@ -71,7 +71,7 @@ RUN set -x; \
             build-essential \
             wget \
             unzip && \
-        pip install pytaglib && \
+        pip install pytaglib==1.4.1 && \
         apt-get clean -qq
 
 # Install FFmpeg
