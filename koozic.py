@@ -5,9 +5,14 @@ from collections import OrderedDict
 from glob import glob
 from multiprocessing import cpu_count
 import os
-from shutil import copytree, rmtree
+from shutil import copyfileobj, rmtree
 import subprocess as s
 import sys
+import tarfile
+from tempfile import NamedTemporaryFile
+import urllib.request
+
+DOWN_URL = 'https://github.com/DocMarty84/koozic/releases/download/{v}/koozic-{v}.tar.gz'
 
 
 class Driver():
@@ -15,7 +20,7 @@ class Driver():
         self.dep = set([])
         self.pip_dep = set([])
         self.user = args.user
-        self.dir = args.directory
+        self.dir = os.path.join(args.directory, 'koozic')
 
     def __setitem__(self, key, val):
         return setattr(self, key, val)
@@ -43,19 +48,26 @@ class Driver():
     def setup_postgresql(self):
         s.call('su - postgres -c "createuser -s {}"'.format(self.user), shell=True)
 
-    def copy_ffmpeg(self):
-        ffmpeg = glob(os.path.join('extra', 'ffmpeg', '*.tar.gz'))
-        s.call(['tar', 'xfz', ffmpeg[0], '-C', os.path.join(os.sep, 'usr', 'local', 'bin')])
+    def download_and_extract(self):
+        with urllib.request.urlopen(DOWN_URL) as response, NamedTemporaryFile() as out_file:
+            dir = os.path.split(self.dir)[0]
+            copyfileobj(response, out_file)
+            tarfile.open(name=out_file.name).extractall(path=dir)
+        s.call(['chown', '-R', '{u}:{u}'.format(u=self.user), self.dir])
 
-    def copy_koozic(self):
-        copytree('.', self.dir)
-        s.call(['chown', '-R', '{}:{}'.format(self.user, self.user), self.dir])
+    def copy_ffmpeg(self):
+        ffmpeg = glob(os.path.join(self.dir, 'extra', 'ffmpeg', '*.tar.gz'))
+        if ffmpeg:
+            path = os.path.join(os.sep, 'usr', 'local', 'bin')
+            tarfile.open(name=ffmpeg[0]).extractall(path=path)
+            s.call(['chown', '{u}:{u}'.format(u=self.user), os.path.join(path, 'ffmpeg')])
 
     def init_koozic(self):
         s.call(self._init_koozic_cmd(), shell=True)
 
     def enable_systemd(self):
-        service = glob(os.path.join('extra', 'linux-systemd', 'system', 'koozic@.service'))
+        service = glob(
+            os.path.join(self.dir, 'extra', 'linux-systemd', 'system', 'koozic@.service'))
         output = ''
         with open(service[0], 'r') as f:
             for line in f:
@@ -105,7 +117,7 @@ class Driver():
         if self._ask_user(
                 'Delete content of folder {} and replace with new sources? '.format(self.dir)):
             rmtree(self.dir, ignore_errors=True)
-            copytree('.', self.dir)
+            self.download_and_extract()
         self.init_koozic()
         s.call(['systemctl', 'start', 'koozic@{}.service'.format(self.user)])
 
@@ -335,8 +347,8 @@ def install(args):
     driver.install_dep()
     driver.install_pip_dep()
     driver.setup_postgresql()
+    driver.download_and_extract()
     driver.copy_ffmpeg()
-    driver.copy_koozic()
     driver.init_koozic()
     driver.enable_systemd()
 
@@ -363,15 +375,22 @@ parser = argparse.ArgumentParser(description='KooZic (un)-installer')
 parser.add_argument(
     'mode', choices=['install', 'uninstall', 'upgrade'], help='install or uninstall mode')
 parser.add_argument('-u', '--user', default='root', help='user running koozic')
-parser.add_argument('-d', '--directory', default='/opt/koozic', help='install directory')
+parser.add_argument('-d', '--directory', default='/opt', help='install directory')
 args = parser.parse_args()
+
+# Get latest version
+url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/master/VERSIONS.md'
+with urllib.request.urlopen(url_versions) as response:
+    version = response.readline()[:-1].decode('utf-8')
+    DOWN_URL = DOWN_URL.format(v=version)
 
 if args.mode == 'install':
     # Check directory
-    if os.path.exists(args.directory):
+    dir = os.path.join(args.directory, 'koozic')
+    if os.path.exists(dir):
         sys.exit(
             'Directory {} already exists. Delete this directory of choose another one.'
-            .format(args.directory)
+            .format(dir)
         )
     install(args)
 
