@@ -69,8 +69,7 @@ RUN set -x; \
             python-wheel \
             libtag1-dev \
             build-essential \
-            wget \
-            unzip && \
+            wget && \
         pip install pytaglib==1.4.1 && \
         apt-get clean -qq
 
@@ -83,11 +82,11 @@ RUN set -x; \
 
 # Install KooZic
 RUN set -x; \
-        wget -q https://github.com/DocMarty84/koozic/releases/download/v0.7.0/koozic-v0.7.0.zip && \
-        unzip -q koozic-v0.7.0.zip && \
+        wget -q https://github.com/DocMarty84/koozic/releases/download/v0.8.0/koozic-v0.8.0.tar.gz && \
+        tar xfz koozic-v0.8.0.tar.gz && \
         mv koozic /usr/local/ && \
         chown -R koozic /usr/local/koozic && \
-        rm -rf koozic-v0.7.0.zip
+        rm -rf koozic-v0.8.0.tar.gz
 
 # Set up PostgreSQL and KooZic
 RUN set -x; \
