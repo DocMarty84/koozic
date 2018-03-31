@@ -40,15 +40,18 @@ class Driver():
                 self[data[0].lower()] = data[1].rstrip()
 
     def install_dep(self):
+        print('Installing package dependencies...')
         self._install(list(self.dep))
 
     def install_pip_dep(self):
+        print('Installing pip dependencies...')
         self._pip_install(list(self.pip_dep))
 
     def setup_postgresql(self):
         s.call('su - postgres -c "createuser -s {}"'.format(self.user), shell=True)
 
     def download_and_extract(self):
+        print('Downloading the latest KooZic version...')
         with urllib.request.urlopen(DOWN_URL) as response, NamedTemporaryFile() as out_file:
             dir = os.path.split(self.dir)[0]
             copyfileobj(response, out_file)
@@ -63,6 +66,7 @@ class Driver():
             s.call(['chown', '{u}:{u}'.format(u=self.user), os.path.join(path, 'ffmpeg')])
 
     def init_koozic(self):
+        print('Initializing KooZic...')
         s.call(self._init_koozic_cmd(), shell=True)
 
     def enable_systemd(self):
@@ -121,17 +125,38 @@ class Driver():
         self.init_koozic()
         s.call(['systemctl', 'start', 'koozic@{}.service'.format(self.user)])
 
+    def install_message(self):
+        print("""
+  ___           _        _ _       _   _
+ |_ _|_ __  ___| |_ __ _| | | __ _| |_(_) ___  _ __
+  | || '_ \/ __| __/ _` | | |/ _` | __| |/ _ \| '_ \\
+  | || | | \__ \ || (_| | | | (_| | |_| | (_) | | | |
+ |___|_| |_|___/\__\__,_|_|_|\__,_|\__|_|\___/|_| |_|
+  ____                               __       _ _
+ / ___| _   _  ___ ___ ___  ___ ___ / _|_   _| | |
+ \___ \| | | |/ __/ __/ _ \/ __/ __| |_| | | | | |
+  ___) | |_| | (_| (_|  __/\__ \__ \  _| |_| | |_|
+ |____/ \__,_|\___\___\___||___/___/_|  \__,_|_(_)
+
+        """)
+        print('You can now connect to http://localhost:8069/.')
+        print('Default credentials:')
+        print('    Email:    admin')
+        print('    Password: admin')
+
     def _install(self, packages=[]):
         raise NotImplementedError()
 
     def _pip_install(self, packages=[]):
         if packages:
-            s.call(['pip', 'install'] + packages)
+            s.call(['pip', 'install', '-q'] + packages)
 
     def _init_koozic_cmd(self):
         return (
             'su - {} -c "{}{}odoo-bin -i oomusic,oovideo -d koozic '
-            '--without-demo=all --stop-after-init"'.format(self.user, self.dir, os.sep)
+            '--without-demo=all --stop-after-init --log-level=warn"'.format(
+                self.user, self.dir, os.sep
+            )
         )
 
     def _ask_user(self, question):
@@ -200,7 +225,7 @@ class DriverDeb(Driver):
 
     def _install(self, packages=[]):
         if packages:
-            s.call(['apt-get', 'install', '-y', '--no-install-recommends'] + packages)
+            s.call(['apt-get', 'install', '-y', '--no-install-recommends', '-qq'] + packages)
 
 
 class DriverRpm(Driver):
@@ -273,7 +298,7 @@ class DriverRpm(Driver):
 
     def _install(self, packages=[]):
         if packages:
-            s.call(['dnf', 'install', '-y'] + packages)
+            s.call(['dnf', 'install', '-y', '-q'] + packages)
 
 
 class DriverUbuntu1604(DriverDeb):
@@ -313,7 +338,7 @@ class DriverCentos74(DriverRpm):
 
     def _install(self, packages=[]):
         if packages:
-            s.call(['yum', 'install', '-y'] + packages)
+            s.call(['yum', 'install', '-y', '-q'] + packages)
 
 
 def get_driver(args):
@@ -351,6 +376,7 @@ def install(args):
     driver.copy_ffmpeg()
     driver.init_koozic()
     driver.enable_systemd()
+    driver.install_message()
 
 
 def uninstall():
