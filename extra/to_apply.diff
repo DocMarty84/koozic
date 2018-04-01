@@ -1,0 +1,12 @@
+diff --git a/odoo/addons/base/base_data.xml b/odoo/addons/base/base_data.xml
+index ed6359c..6ea31a9 100644
+--- a/odoo/addons/base/base_data.xml
++++ b/odoo/addons/base/base_data.xml
+@@ -39,6 +39,7 @@
+             <field name="phone"></field>
+             <field name="email">info@yourcompany.com</field>
+             <field name="website">www.yourcompany.com</field>
++            <field name="image" type="base64" file="base/res/res_company_logo.png"/>
+         </record>
+
+         <!-- Basic Company  -->

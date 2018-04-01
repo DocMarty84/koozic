@@ -14,7 +14,7 @@ function update_odoo {
     fi
     cd ${SCRIPT_DIR}/../../odoo
     git fetch --all --prune
-    git checkout 10.0
+    git checkout 11.0
     git rebase
     git clean -fdx
     export LAST_COMMIT=$(git rev-parse HEAD)
@@ -30,7 +30,13 @@ function update_koozic {
     cd ${SCRIPT_DIR}
     cp img/nologo.png ../addons/web/static/src/img/
     cp img/logo.png ../addons/web/static/src/img/
-    cp img/logo.png ../odoo/addons/base/static/img/main_partner-image.png
+    cp img/logo.png ../odoo/addons/base/res/res_company_logo.png
+
+    # Apply diff
+    cd ${SCRIPT_DIR}/..
+    cp extra/to_apply.diff ${SCRIPT_DIR}/..
+    patch -p1 < to_apply.diff
+    rm to_apply.diff
 
     # Commit new version
     cd ${SCRIPT_DIR}/..
