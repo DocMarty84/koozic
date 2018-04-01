@@ -405,7 +405,7 @@ parser.add_argument('-d', '--directory', default='/opt', help='install directory
 args = parser.parse_args()
 
 # Get latest version
-url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/master/VERSIONS.md'
+url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/10.0/VERSIONS.md'
 with urllib.request.urlopen(url_versions) as response:
     version = response.readline()[:-1].decode('utf-8')
     DOWN_URL = DOWN_URL.format(v=version)
