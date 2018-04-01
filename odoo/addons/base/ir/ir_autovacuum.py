@@ -17,7 +17,11 @@ class AutoVacuum(models.AbstractModel):
         for mname in self.env:
             model = self.env[mname]
             if model.is_transient():
-                model._transient_vacuum(force=True)
+                try:
+                    with self._cr.savepoint():
+                        model._transient_vacuum(force=True)
+                except Exception as e:
+                    _logger.warning("Failed to clean transient model %s\n%s", model, str(e))
 
     @api.model
     def _gc_user_logs(self):
@@ -31,7 +35,7 @@ class AutoVacuum(models.AbstractModel):
         _logger.info("GC'd %d user log entries", self._cr.rowcount)
 
     @api.model
-    def power_on(self):
+    def power_on(self, *args, **kwargs):
         self.env['ir.attachment']._file_gc()
         self._gc_transient_models()
         self._gc_user_logs()
