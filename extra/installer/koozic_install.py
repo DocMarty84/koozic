@@ -187,6 +187,7 @@ class DriverDeb(Driver):
             'python3-dev',
             'python3-docutils',
             'python3-feedparser',
+            'python3-gevent',
             'python3-html2text',
             'python3-jinja2',
             'python3-lxml',
