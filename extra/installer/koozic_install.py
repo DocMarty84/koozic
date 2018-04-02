@@ -149,7 +149,7 @@ class Driver():
 
     def _pip_install(self, packages=[]):
         if packages:
-            s.call(['pip', 'install', '-q'] + packages)
+            s.call(['pip3', 'install', '-q'] + packages)
 
     def _init_koozic_cmd(self):
         return (
@@ -176,51 +176,47 @@ class DriverDeb(Driver):
             'adduser',
             'build-essential',
             'libtag1-dev',
+            'lsb-base',
             'mediainfo',
             'node-less',
             'postgresql',
             'postgresql-client',
-            'python',
-            'python-dateutil',
-            'python-decorator',
-            'python-dev',
-            'python-docutils',
-            'python-feedparser',
-            'python-gevent',
-            'python-imaging',
-            'python-jinja2',
-            'python-ldap',
-            'python-libxslt1',
-            'python-lxml',
-            'python-mako',
-            'python-mock',
-            'python-mutagen',
-            'python-openid',
-            'python-passlib',
-            'python-pip',
-            'python-psutil',
-            'python-psycogreen',
-            'python-psycopg2',
-            'python-pybabel',
-            'python-pychart',
-            'python-pydot',
-            'python-pyparsing',
-            'python-pypdf',
-            'python-reportlab',
-            'python-requests',
-            'python-setuptools',
-            'python-suds',
-            'python-tz',
-            'python-vatnumber',
-            'python-vobject',
-            'python-werkzeug',
-            'python-wheel',
-            'python-xlsxwriter',
-            'python-xlwt',
-            'python-yaml',
+            'python3-babel',
+            'python3-dateutil',
+            'python3-decorator',
+            'python3-dev',
+            'python3-docutils',
+            'python3-feedparser',
+            'python3-html2text',
+            'python3-jinja2',
+            'python3-lxml',
+            'python3-mako',
+            'python3-mock',
+            'python3-passlib',
+            'python3-pil',
+            'python3-pip',
+            'python3-psutil',
+            'python3-psycopg2',
+            'python3-pydot',
+            'python3-pyldap',
+            'python3-pyparsing',
+            'python3-pypdf2',
+            'python3-qrcode',
+            'python3-reportlab',
+            'python3-requests',
+            'python3-setuptools',
+            'python3-suds',
+            'python3-tz',
+            'python3-vatnumber',
+            'python3-vobject',
+            'python3-werkzeug',
+            'python3-wheel',
+            'python3-xlsxwriter',
+            'python3-yaml',
         ])
         self.pip_dep |= set([
-            'pytaglib==1.4.1',
+            'mutagen==1.40.0',
+            'pytaglib==1.4.3',
         ])
 
     def _install(self, packages=[]):
@@ -238,7 +234,6 @@ class DriverRpm(Driver):
             'libxslt-python',
             'mediainfo',
             'nodejs-less',
-            'redhat-rpm-config',
             'postgresql',
             'postgresql-contrib',
             'postgresql-devel',
@@ -246,43 +241,52 @@ class DriverRpm(Driver):
             'postgresql-server',
             'pychart',
             'pyparsing',
-            'python-babel',
-            'python-dateutil',
-            'python-decorator',
-            'python-devel',
-            'python-docutils',
-            'python-feedparser',
-            'python-gevent',
-            'python-imaging',
-            'python-jinja2',
-            'python-ldap',
-            'python-lxml',
-            'python-mako',
-            'python-mock',
-            'python-mutagen',
-            'python-openid',
-            'python-passlib',
-            'python-pip',
-            'python-psutil',
-            'python-psycogreen',
-            'python-psycopg2',
-            'python-reportlab',
-            'python-requests',
-            'python-vobject',
-            'python-werkzeug',
-            'python-xlwt',
-            'python-yaml',
-            'pytz',
+            'python3-babel',
+            'python3-dateutil',
+            'python3-decorator',
+            'python3-devel',
+            'python3-docutils',
+            'python3-feedparser',
+            'python3-gevent',
+            'python3-greenlet',
+            'python3-html2text',
+            'python3-jinja2',
+            'python3-lxml',
+            'python3-mako',
+            'python3-markupsafe',
+            'python3-mock',
+            'python3-num2words',
+            'python3-ofxparse',
+            'python3-passlib',
+            'python3-pillow',
+            'python3-psutil',
+            'python3-psycopg2',
+            'python3-pydot',
+            'python3-pyldap',
+            'python3-pyparsing',
+            'python3-PyPDF2',
+            'python3-pyserial',
+            'python3-pytz',
+            'python3-pyusb',
+            'python3-PyYAML',
+            'python3-qrcode',
+            'python3-reportlab',
+            'python3-requests',
+            'python3-six',
+            'python3-stdnum',
+            'python3-suds',
+            'python3-vatnumber',
+            'python3-vobject',
+            'python3-werkzeug',
+            'python3-xlrd',
+            'python3-xlwt',
+            'redhat-rpm-config',
             'taglib-devel',
         ])
         self.pip_dep |= set([
-            'ofxparse',
-            'pydot',
-            'pyPdf',
-            'pytaglib==1.4.1',
-            'suds',
-            'vatnumber',
-            'XlsxWriter',
+            'mutagen==1.40.0',
+            'pytaglib==1.4.3',
+            'XlsxWriter==0.9.3',
         ])
 
     def setup_postgresql(self):
@@ -304,22 +308,26 @@ class DriverRpm(Driver):
 class DriverUbuntu1604(DriverDeb):
     def __init__(self, args):
         super().__init__(args)
+        self.dep -= set([
+            'python3-pyldap',
+            'python3-qrcode',
+            'python3-vobject',
+        ])
+        self.dep |= set([
+            'libldap2-dev',
+            'libsasl2-dev',
+            'libssl-dev',
+        ])
+        self.pip_dep |= set([
+            'pyldap==2.4.28',
+            'qrcode==5.3',
+            'vobject==0.9.3',
+        ])
 
 
 class DriverDebian9(DriverDeb):
     def __init__(self, args):
         super().__init__(args)
-        self.dep.discard('python-pypdf')
-        self.dep.discard('python-pybabel')
-        self.pip_dep.add('pypdf')
-        self.pip_dep.add('babel')
-
-
-class DriverDebian8(DriverDeb):
-    def __init__(self, args):
-        super().__init__(args)
-        self.dep.discard('python-psycogreen')
-        self.pip_dep.add('psycogreen')
 
 
 class DriverFedora27(DriverRpm):
@@ -332,13 +340,118 @@ class DriverFedora27(DriverRpm):
 
 
 class DriverCentos74(DriverRpm):
+    def __init__(self, args):
+        super().__init__(args)
+        self.dep -= set([
+            'python3-babel',
+            'python3-dateutil',
+            'python3-decorator',
+            'python3-devel',
+            'python3-docutils',
+            'python3-feedparser',
+            'python3-gevent',
+            'python3-greenlet',
+            'python3-html2text',
+            'python3-jinja2',
+            'python3-lxml',
+            'python3-mako',
+            'python3-markupsafe',
+            'python3-mock',
+            'python3-num2words',
+            'python3-ofxparse',
+            'python3-passlib',
+            'python3-pillow',
+            'python3-psutil',
+            'python3-psycopg2',
+            'python3-pydot',
+            'python3-pyldap',
+            'python3-pyparsing',
+            'python3-PyPDF2',
+            'python3-pyserial',
+            'python3-pytz',
+            'python3-pyusb',
+            'python3-PyYAML',
+            'python3-qrcode',
+            'python3-reportlab',
+            'python3-requests',
+            'python3-six',
+            'python3-stdnum',
+            'python3-suds',
+            'python3-vatnumber',
+            'python3-vobject',
+            'python3-werkzeug',
+            'python3-xlrd',
+            'python3-xlwt',
+        ])
+        self.dep |= set([
+            'libxslt-devel',
+            'libxml2-devel',
+            'openldap-devel',
+            'python36u-devel',
+            'python36u-pip',
+            'python36u-setuptools',
+        ])
+        self.pip_dep |= set([
+            'Babel==2.3.4',
+            'decorator==4.0.10',
+            'docutils==0.12',
+            'ebaysdk==2.1.5',
+            'feedparser==5.2.1',
+            'gevent==1.1.2',
+            'greenlet==0.4.10',
+            'html2text==2016.9.19',
+            'Jinja2==2.8',
+            'lxml==3.7.1',
+            'Mako==1.0.4',
+            'MarkupSafe==0.23',
+            'mock==2.0.0',
+            'num2words==0.5.4',
+            'ofxparse==0.16',
+            'passlib==1.6.5',
+            'Pillow==4.0.0',
+            'psutil==4.3.1',
+            'psycopg2==2.7.3.1',
+            'pydot==1.2.3',
+            'pyldap==2.4.28',
+            'pyparsing==2.1.10',
+            'PyPDF2==1.26.0',
+            'pyserial==3.1.1',
+            'python-dateutil==2.5.3',
+            'pytz==2016.7',
+            'pyusb==1.0.0',
+            'PyYAML==3.12',
+            'qrcode==5.3',
+            'reportlab==3.3.0',
+            'requests==2.11.1',
+            'suds-jurko==0.6',
+            'vatnumber==1.2',
+            'vobject==0.9.3',
+            'Werkzeug==0.11.15',
+            'xlwt==1.3.*',
+            'xlrd==1.0.0',
+        ])
+
     def setup_postgresql(self):
         s.call(['postgresql-setup', 'initdb'])
         super().setup_postgresql()
 
+    def download_and_extract(self):
+        super().download_and_extract()
+
+        # Replace python3 with python3.6
+        fn_to_replace = os.path.join(self.dir, 'odoo-bin')
+        with open(fn_to_replace, 'r') as fn:
+            fn_content = fn.read().replace('python3', 'python3.6')
+        with open(fn_to_replace, 'w') as fn:
+            fn.write(fn_content)
+
     def _install(self, packages=[]):
         if packages:
             s.call(['yum', 'install', '-y', '-q'] + packages)
+
+    def _pip_install(self, packages=[]):
+        if packages:
+            s.call(['pip3.6', 'install', '-q'] + packages)
 
 
 def get_driver(args):
@@ -346,16 +459,15 @@ def get_driver(args):
     os_choices = OrderedDict()
     os_choices['1'] = ('Ubuntu 16.04', DriverUbuntu1604)
     os_choices['2'] = ('Debian 9', DriverDebian9)
-    os_choices['3'] = ('Debian 8 (*)', DriverDebian8)
-    os_choices['4'] = ('Fedora 27', DriverFedora27)
-    os_choices['5'] = ('CentOS 7.4', DriverCentos74)
+    os_choices['3'] = ('Fedora 27', DriverFedora27)
+    os_choices['4'] = ('CentOS 7.4', DriverCentos74)
 
     print('Choose your operating system:')
     while True:
         for k, v in os_choices.items():
             print('  {} : {}'.format(k, v[0]))
         print('  0 : exit this installer')
-        print('(*) are deprecated OS')
+        # print('(*) are deprecated OS')
 
         os_choice = input('Your choice: ')
         if os_choice == '0':
@@ -405,7 +517,7 @@ parser.add_argument('-d', '--directory', default='/opt', help='install directory
 args = parser.parse_args()
 
 # Get latest version
-url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/master/VERSIONS.md'
+url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/11.0/VERSIONS.md'
 with urllib.request.urlopen(url_versions) as response:
     version = response.readline()[:-1].decode('utf-8')
     DOWN_URL = DOWN_URL.format(v=version)
