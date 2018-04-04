@@ -455,6 +455,74 @@ class DriverCentos74(DriverRpm):
             s.call(['pip3.6', 'install', '-q'] + packages)
 
 
+class DriverArch(Driver):
+    def __init__(self, args):
+        super().__init__(args)
+        self.dep |= set([
+            'gcc',
+            'libxml2',
+            'libxslt',
+            'nodejs-less',
+            'postgresql',
+            'python-pip',
+            'taglib',
+        ])
+        self.pip_dep |= set([
+            'Babel==2.3.4',
+            'decorator==4.0.10',
+            'docutils==0.12',
+            'ebaysdk==2.1.5',
+            'feedparser==5.2.1',
+            'gevent==1.1.2',
+            'greenlet==0.4.10',
+            'html2text==2016.9.19',
+            'Jinja2==2.8',
+            'lxml==3.7.1',
+            'Mako==1.0.4',
+            'MarkupSafe==0.23',
+            'mock==2.0.0',
+            'mutagen==1.40.0',
+            'num2words==0.5.4',
+            'ofxparse==0.16',
+            'passlib==1.6.5',
+            'Pillow==4.0.0',
+            'psutil==4.3.1',
+            'psycopg2==2.7.3.1',
+            'pydot==1.2.3',
+            'pyldap==2.4.28',
+            'pyparsing==2.1.10',
+            'PyPDF2==1.26.0',
+            'pyserial==3.1.1',
+            'pytaglib==1.4.3',
+            'python-dateutil==2.5.3',
+            'pytz==2016.7',
+            'pyusb==1.0.0',
+            'PyYAML==3.12',
+            'qrcode==5.3',
+            'reportlab==3.3.0',
+            'requests==2.11.1',
+            'suds-jurko==0.6',
+            'vatnumber==1.2',
+            'vobject==0.9.3',
+            'Werkzeug==0.11.15',
+            'xlwt==1.3.*',
+            'xlrd==1.0.0',
+            'XlsxWriter==0.9.3',
+        ])
+
+    def setup_postgresql(self):
+        s.call(
+            'su - postgres -c "initdb --locale $LANG -E UTF8 -D \'/var/lib/postgres/data\'"',
+            shell=True)
+        s.call(['systemctl', 'enable', 'postgresql'])
+        s.call(['systemctl', 'start', 'postgresql'])
+        super().setup_postgresql()
+
+    def _install(self, packages=[]):
+        if packages:
+            s.call(['pacman', '-S', '--needed', '--noconfirm', '-q'] + packages)
+
+
 def get_driver(args):
     # Choose OS
     os_choices = OrderedDict()
@@ -462,6 +530,7 @@ def get_driver(args):
     os_choices['2'] = ('Debian 9', DriverDebian9)
     os_choices['3'] = ('Fedora 27', DriverFedora27)
     os_choices['4'] = ('CentOS 7.4', DriverCentos74)
+    os_choices['5'] = ('ArchLinux', DriverArch)
 
     print('Choose your operating system:')
     while True:
