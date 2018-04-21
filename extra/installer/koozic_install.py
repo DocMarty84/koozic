@@ -77,11 +77,10 @@ class Driver():
             for line in f:
                 if line.startswith('ExecStart'):
                     output += 'ExecStart={} -d koozic '.format(os.path.join(self.dir, 'odoo-bin'))
-                    if cpu_count() > 1:
-                        output += (
-                            '--workers={} --limit-time-cpu=1800 --limit-time-real=3600'
-                            .format(cpu_count())
-                        )
+                    output += (
+                        '--workers={} --limit-time-cpu=1800 --limit-time-real=3600'
+                        .format(cpu_count() + 1)
+                    )
                     output += '\n'
                 else:
                     output += '{}'.format(line)
