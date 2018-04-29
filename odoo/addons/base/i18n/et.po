@@ -12,13 +12,14 @@
 # Wanradt Koell <wanradt@gmail.com>, 2017
 # Gert Valdek <gert@airobot.ee>, 2017
 # Mattias Põldaru <mahfiaz@gmail.com>, 2017
+# Ants Peetsalu <ants@avalah.ee>, 2018
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 11.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2018-02-19 14:33+0000\n"
 "PO-Revision-Date: 2018-02-19 14:33+0000\n"
-"Last-Translator: Mattias Põldaru <mahfiaz@gmail.com>, 2017\n"
+"Last-Translator: Ants Peetsalu <ants@avalah.ee>, 2018\n"
 "Language-Team: Estonian (https://www.transifex.com/odoo/teams/41243/et/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -283,7 +284,7 @@ msgstr ""
 "Tulude eristamine\n"
 "====================\n"
 "Halda tulude eristamist toodete müümisel.\n"
-"Jälgib tulude eristamise osamakseid ja loob vastavad andmikukanded.\n"
+"Jälgib tulude eristamise osamakseid ja loob vastavad andmiku kanded.\n"
 "    "
 
 #. module: base
@@ -1083,7 +1084,7 @@ msgstr ""
 "\n"
 "Raamatupidamise ligipääsuõigused\n"
 "========================\n"
-"See annab administraatorile ligipääsu kõigile raamatupidamisfunktsioonidele nagu andmikukanded ja kontoplaan.\n"
+"See annab administraatorile ligipääsu kõigile raamatupidamisfunktsioonidele nagu andmike kanderead ja kontoplaan.\n"
 "\n"
 "See annab raamatupidamisrakenduse halduri ja kasutaja õigused administraatorile ja ainult kasutajaõigused demo-kasutajale.\n"
 
@@ -1523,13 +1524,13 @@ msgstr ""
 "Võimaldab tühistada raamatupidamiskandeid.\n"
 "====================================\n"
 "\n"
-"See moodul lisab raamatupidamisandmikku valiku andmikukannete tühistamiseks.\n"
+"See moodul lisab raamatupidamisandmikku valiku andmiku kannete tühistamiseks.\n"
 "\n"
-"See valik on nähtav ainult andmikukannetel kui vigade kõrvaldamise režiim on sees. \n"
+"See valik on nähtav ainult andmiku kannetel kui vigade kõrvaldamise režiim on sees. \n"
 "\n"
-"Kui see valik on määratud kui tõene, siis kasutajatel on võimalik tühistada andmikukandeid.\n"
+"Kui see valik on määratud kui tõene, siis kasutajatel on võimalik tühistada andmiku kandeid.\n"
 "\n"
-"Tühistatud andmikukannet on võimalik muuta ja uuesti postitada või kustutada.\n"
+"Tühistatud andmiku kannet on võimalik muuta ja uuesti postitada või kustutada.\n"
 "\n"
 "Samuti toimib see arvetel, pangaväljavõtetel, maksetel ...\n"
 "\n"
@@ -1653,7 +1654,7 @@ msgstr ""
 "Varade haldamine\n"
 "=================\n"
 "Halda ettevõtte või inimese varasid.\n"
-"Haldab amortisatsioonikulusid ja loob vastavad andmikukanded.\n"
+"Haldab amortisatsioonikulusid ja loob vastavad andmiku kanded.\n"
 "\n"
 "    "
 
@@ -8354,7 +8355,7 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_model_count
 msgid "Count (incl. archived)"
-msgstr ""
+msgstr "Loendus (k.a arhiveeritud)"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.action_country
@@ -8664,7 +8665,7 @@ msgstr "Loonud"
 #: model:ir.model.fields,field_description:base.field_res_users_log_create_date
 #: model:ir.model.fields,field_description:base.field_wizard_ir_model_menu_create_create_date
 msgid "Created on"
-msgstr "Loodud"
+msgstr "Loomise kuupäev"
 
 #. module: base
 #: model:ir.ui.view,arch_db:base.view_attachment_form
@@ -8768,12 +8769,12 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_currency_currency_unit_label
 msgid "Currency Unit"
-msgstr ""
+msgstr "Valuuta ühik"
 
 #. module: base
 #: model:ir.model.fields,help:base.field_res_currency_currency_unit_label
 msgid "Currency Unit Name"
-msgstr ""
+msgstr "Valuuta ühiku nimi"
 
 #. module: base
 #: model:ir.model.fields,help:base.field_res_currency_symbol
@@ -9514,7 +9515,7 @@ msgstr "Dr."
 #: model:ir.module.module,shortdesc:base.module_stock_dropshipping
 #: model:ir.module.module,summary:base.module_stock_dropshipping
 msgid "Drop Shipping"
-msgstr ""
+msgstr "Otsesaatmine"
 
 #. module: base
 #: code:addons/base/ir/ir_qweb/fields.py:382
@@ -16088,7 +16089,7 @@ msgstr ""
 #: selection:ir.actions.act_window.view,view_mode:0
 #: selection:ir.ui.view,type:0
 msgid "Pivot"
-msgstr ""
+msgstr "Pivoo"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_web_planner
@@ -16566,7 +16567,7 @@ msgstr "Ost"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_purchase_requisition
 msgid "Purchase Agreements"
-msgstr ""
+msgstr "Ostulepingud"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_purchase
@@ -17946,12 +17947,12 @@ msgstr "Allikaobjekt"
 #. module: base
 #: model:ir.ui.view,arch_db:base.view_translation_form
 msgid "Source Term"
-msgstr ""
+msgstr "Tõlgitav väärtus"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_translation_source
 msgid "Source term"
-msgstr ""
+msgstr "Tõlgitav väärtus"
 
 #. module: base
 #: model:res.country,name:base.za
@@ -19256,7 +19257,7 @@ msgstr "Tõlgitud mõisted"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_translation_name
 msgid "Translated field"
-msgstr ""
+msgstr "Tõlgitud väärtus"
 
 #. module: base
 #: model:ir.ui.view,arch_db:base.view_translation_form
