@@ -10,3 +10,37 @@ index ed6359c..6ea31a9 100644
          </record>
 
          <!-- Basic Company  -->
+
+diff --git a/addons/web/static/src/js/chrome/user_menu.js b/addons/web/static/src/js/chrome/user_menu.js
+index 84c16b5..39e8609 100644
+--- a/addons/web/static/src/js/chrome/user_menu.js
++++ b/addons/web/static/src/js/chrome/user_menu.js
+@@ -74,7 +74,7 @@ var UserMenu = Widget.extend({
+      * @private
+      */
+     _onMenuDocumentation: function () {
+-        window.open('https://www.odoo.com/documentation/user', '_blank');
++        window.open('https://koozic.net/faq/', '_blank');
+     },
+     /**
+      * @private
+@@ -109,7 +109,7 @@ var UserMenu = Widget.extend({
+      * @private
+      */
+     _onMenuSupport: function () {
+-        window.open('https://www.odoo.com/buy', '_blank');
++        window.open('https://github.com/DocMarty84/koozic/issues', '_blank');
+     },
+ });
+
+diff --git a/addons/web/static/src/xml/base.xml b/addons/web/static/src/xml/base.xml
+index 82a2e79..65416eb 100644
+--- a/addons/web/static/src/xml/base.xml
++++ b/addons/web/static/src/xml/base.xml
+@@ -1331,7 +1331,6 @@
+     <li><a href="#" data-menu="support">Support</a></li>
+     <li class="divider"/>
+     <li><a href="#" data-menu="settings">Preferences</a></li>
+-    <li><a href="#" data-menu="account">My Odoo.com account</a></li>
+     <li><a href="#" data-menu="logout">Log out</a></li>
+ </t>
