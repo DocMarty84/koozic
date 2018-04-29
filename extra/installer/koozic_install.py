@@ -305,6 +305,11 @@ class DriverRpm(Driver):
             s.call(['dnf', 'install', '-y', '-q'] + packages)
 
 
+class DriverUbuntu1804(DriverDeb):
+    def __init__(self, args):
+        super().__init__(args)
+
+
 class DriverUbuntu1604(DriverDeb):
     def __init__(self, args):
         super().__init__(args)
@@ -525,11 +530,12 @@ class DriverArch(Driver):
 def get_driver(args):
     # Choose OS
     os_choices = OrderedDict()
-    os_choices['1'] = ('Ubuntu 16.04', DriverUbuntu1604)
-    os_choices['2'] = ('Debian 9', DriverDebian9)
-    os_choices['3'] = ('Fedora 27', DriverFedora27)
-    os_choices['4'] = ('CentOS 7.4', DriverCentos74)
-    os_choices['5'] = ('ArchLinux', DriverArch)
+    os_choices['1'] = ('Ubuntu 18.04', DriverUbuntu1804)
+    os_choices['2'] = ('Ubuntu 16.04', DriverUbuntu1604)
+    os_choices['3'] = ('Debian 9', DriverDebian9)
+    os_choices['4'] = ('Fedora 27', DriverFedora27)
+    os_choices['5'] = ('CentOS 7.4', DriverCentos74)
+    os_choices['6'] = ('ArchLinux', DriverArch)
 
     print('Choose your operating system:')
     while True:
