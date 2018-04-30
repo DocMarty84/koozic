@@ -1,8 +1,8 @@
 This folder provides a basic Docker configuration file in order to run a fully functional KooZic
 installation. It includes:
-- Ubuntu 16.04
-- KooZic 0.7.0
-- PostgreSQL 9.5
+- Debian 9
+- KooZic 1.0.0
+- PostgreSQL 9.6
 - FFmpeg 3.4
 
 By default, it is configured to take advantage of multi-processing. The container runs its own

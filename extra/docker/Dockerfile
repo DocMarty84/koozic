@@ -1,4 +1,4 @@
-FROM ubuntu:xenial
+FROM debian:stretch
 MAINTAINER DocMarty84 <nicolas.martinelli@gmail.com>
 
 # Set up user and mount point
@@ -11,90 +11,85 @@ RUN set -x; \
 RUN set -x; \
         apt-get update -qq && \
         apt-get install -y --no-install-recommends -qq locales && \
-        apt-get clean -qq && \
-        dpkg-reconfigure locales && \
+        apt-get clean -qq
+RUN set -x; \
+        dpkg-reconfigure -fnoninteractive locales && \
+        sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen && \
         locale-gen en_US.UTF-8 && \
         /usr/sbin/update-locale LANG=en_US.UTF-8
 ENV LC_ALL en_US.UTF-8
 
-# Install mandatory dependencies
+# Install apt dependencies
 RUN set -x; \
         apt-get install -y --no-install-recommends -qq \
             adduser \
-            node-less \
-            postgresql-client \
-            python python-dateutil \
-            python-decorator \
-            python-docutils \
-            python-feedparser \
-            python-imaging \
-            python-jinja2 \
-            python-ldap \
-            python-libxslt1 \
-            python-lxml \
-            python-mako \
-            python-mock \
-            python-openid \
-            python-passlib \
-            python-psutil \
-            python-psycopg2 \
-            python-pybabel \
-            python-pychart \
-            python-pydot \
-            python-pyparsing \
-            python-pypdf \
-            python-reportlab \
-            python-requests \
-            python-suds \
-            python-tz \
-            python-vatnumber \
-            python-vobject \
-            python-werkzeug \
-            python-xlsxwriter \
-            python-xlwt \
-            python-yaml \
-            postgresql \
-            python-mutagen \
-            mediainfo && \
-        apt-get clean -qq
-
-# Install optional dependencies
-RUN set -x; \
-        apt-get install -y --no-install-recommends -qq \
-            python-psycogreen \
-            python-gevent \
-            python-dev \
-            python-pip \
-            python-setuptools \
-            python-wheel \
-            libtag1-dev \
             build-essential \
+            libtag1-dev \
+            lsb-base \
+            mediainfo \
+            node-less \
+            postgresql \
+            postgresql-client \
+            python3-babel \
+            python3-dateutil \
+            python3-decorator \
+            python3-dev \
+            python3-docutils \
+            python3-feedparser \
+            python3-gevent \
+            python3-html2text \
+            python3-jinja2 \
+            python3-lxml \
+            python3-mako \
+            python3-mock \
+            python3-passlib \
+            python3-pil \
+            python3-pip \
+            python3-psutil \
+            python3-psycopg2 \
+            python3-pydot \
+            python3-pyldap \
+            python3-pyparsing \
+            python3-pypdf2 \
+            python3-qrcode \
+            python3-reportlab \
+            python3-requests \
+            python3-setuptools \
+            python3-suds \
+            python3-tz \
+            python3-vatnumber \
+            python3-vobject \
+            python3-werkzeug \
+            python3-wheel \
+            python3-xlsxwriter \
+            python3-yaml \
             wget && \
-        pip install pytaglib==1.4.1 && \
         apt-get clean -qq
 
-# Install FFmpeg
+# Install pip dependencies
 RUN set -x; \
-        wget -q https://github.com/DocMarty84/koozic/raw/master/extra/ffmpeg/ffmpeg-3.4-64bit.tar.gz && \
-        tar xfz ffmpeg-*-64bit.tar.gz && \
-        mv ffmpeg /usr/local/bin && \
-        rm -rf ffmpeg-*
+        pip3 install \
+            mutagen==1.40.0 \
+            pytaglib==1.4.1
 
 # Install KooZic
 RUN set -x; \
-        wget -q https://github.com/DocMarty84/koozic/releases/download/v0.8.0/koozic-v0.8.0.tar.gz && \
-        tar xfz koozic-v0.8.0.tar.gz && \
+        v=v1.0.0-beta.2 && \
+        wget -q https://github.com/DocMarty84/koozic/releases/download/${v}/koozic-${v}.tar.gz && \
+        tar xfz koozic-*.tar.gz && \
+        rm -rf koozic-*.tar.gz
+RUN set -x; \
+        tar xfz koozic/extra/ffmpeg/ffmpeg-3.4-64bit.tar.gz -C /usr/local/bin && \
         mv koozic /usr/local/ && \
-        chown -R koozic /usr/local/koozic && \
-        rm -rf koozic-v0.8.0.tar.gz
+        chown -R koozic /usr/local/koozic
 
 # Set up PostgreSQL and KooZic
 RUN set -x; \
-        sed -i 's/5432/54321/g' /etc/postgresql/9.5/main/postgresql.conf && \
+        sed -i 's/5432/54321/g' /etc/postgresql/9.6/main/postgresql.conf && \
         service postgresql start && \
         sleep 5 && \
         su - postgres -c "createuser -s koozic" && \
-        su - koozic -c "/usr/local/koozic/odoo-bin -d koozic --db_port=54321 -i oomusic,oovideo --stop-after-init --log-level=warn"
+        su - koozic -c "/usr/local/koozic/odoo-bin -d koozic --db_port=54321 -i oomusic,oovideo --without-demo=all --stop-after-init --log-level=warn"
 
 # Copy entrypoint script
 COPY ./entrypoint.sh /
