@@ -74,7 +74,7 @@ var UserMenu = Widget.extend({
      * @private
      */
     _onMenuDocumentation: function () {
-        window.open('https://www.odoo.com/documentation/user', '_blank');
+        window.open('https://koozic.net/faq/', '_blank');
     },
     /**
      * @private
@@ -109,7 +109,7 @@ var UserMenu = Widget.extend({
      * @private
      */
     _onMenuSupport: function () {
-        window.open('https://www.odoo.com/buy', '_blank');
+        window.open('https://github.com/DocMarty84/koozic/issues', '_blank');
     },
 });
 
