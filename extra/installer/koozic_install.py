@@ -77,10 +77,9 @@ class Driver():
             for line in f:
                 if line.startswith('ExecStart'):
                     output += 'ExecStart={} -d koozic '.format(os.path.join(self.dir, 'odoo-bin'))
-                    output += (
-                        '--workers={} --limit-time-cpu=1800 --limit-time-real=3600'
-                        .format(cpu_count() + 1)
-                    )
+                    output += ' '.join([
+                        '{}={}'.format(k, v) for k, v in self._compute_options().items()
+                    ])
                     output += '\n'
                 else:
                     output += '{}'.format(line)
@@ -157,6 +156,22 @@ class Driver():
                 self.user, self.dir, os.sep
             )
         )
+
+    def _compute_options(self):
+        cpu = cpu_count()
+        max_mem = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
+        workers = max(cpu, 2)
+        max_cron_threads = 1
+        limit_memory_soft = min(max_mem / (workers + max_cron_threads), 2048 * 1024 ** 2)
+        limit_memory_hard = max_mem * 0.90
+        return {
+            '--workers': workers,
+            '--max-cron-threads': max_cron_threads,
+            '--limit-memory-soft': max(256 * 1024 ** 2, int(limit_memory_soft)),
+            '--limit-memory-hard': max(1024 ** 3, int(limit_memory_hard)),
+            '--limit-time-cpu': 1800,
+            '--limit-time-real': 3600,
+        }
 
     def _ask_user(self, question):
         accepted_answers = ['y', 'n', 'yes', 'no']
