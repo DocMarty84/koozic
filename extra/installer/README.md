@@ -21,11 +21,11 @@ optional arguments:
 
 # Supported platforms
 
-- Ubuntu 16.04
+- Ubuntu 18.04 / 16.04
 - Debian 9
-- Debian 8
-- Fedora 27
+- Fedora 27 / 28
 - CentOS 7.4
+- Archlinux
 
 # Detailed process
 
