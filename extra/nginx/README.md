@@ -9,6 +9,14 @@ Copy the file `nginx_ssl_config` to `/etc/nginx/sites-available/default`. Change
 
 Restart the service. To generate SSL certificates with Let's Encrypt, follow the instructions below.
 
+# KooZic
+
+When running behind nginx, KooZic requires an extra parameter. Add the option `--proxy-mode` at
+execution. For example:
+```
+/opt/koozic/odoo-bin --workers=4 --limit-time-cpu=1800 --limit-time-real=3600 --proxy-mode
+```
+
 # Let's Encrypt
 
 Here is the procedure to generate a Let's Encrypt SSL certificate
@@ -47,18 +55,3 @@ Create a `cron` job (once a day) for the following command:
 ```
 /path/to/certbot-auto renew --no-self-upgrade ; service nginx restart
 ```
-
-# Fail2ban
-
-KooZic does not provide any embedded brute-force attack protection. Here is a guide to set up
-fail2ban to mitigate such an attack when nginx is set up.
-
-- Copy the filter: `cp fail2ban-filter.conf /etc/fail2ban/filter.d/nginx-odoo.conf`
-- Copy the jail: `cp fail2ban-jail.conf /etc/fail2ban/jail.d/nginx-odoo.conf`
-
-Restart the service.
-
-Unfortunately, it is not possible to distinguish a successful from a failed login attempt.
-Therefore, the jail is empirical and bans an IP address if more than 10 attempts are made within 120
-seconds. In case many users connect to the server from the same IP address, this might be too
-restrictive.

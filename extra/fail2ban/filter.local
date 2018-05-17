@@ -1,0 +1,3 @@
+[Definition]
+failregex = .* INFO \S+ \S+ Login failed for db:\S+ login:\S+ from <HOST>
+ignoreregex =
