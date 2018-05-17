@@ -18,13 +18,14 @@
 # Arminas Grigonis <arminas@versada.lt>, 2017
 # Silvija Butko <silvija.butko@gmail.com>, 2018
 # Eimantas <eimantas@focusate.eu>, 2018
+# Paulius Sladkevičius <paulius@versada.eu>, 2018
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 11.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2018-02-19 14:33+0000\n"
 "PO-Revision-Date: 2018-02-19 14:33+0000\n"
-"Last-Translator: Eimantas <eimantas@focusate.eu>, 2018\n"
+"Last-Translator: Paulius Sladkevičius <paulius@versada.eu>, 2018\n"
 "Language-Team: Lithuanian (https://www.transifex.com/odoo/teams/41243/lt/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -46,6 +47,15 @@ msgid ""
 "\n"
 "    "
 msgstr ""
+"\n"
+"\n"
+"    科目类型\\会计科目表模板\\增值税\\辅助核算类别\\管理会计凭证簿\\财务会计凭证簿\n"
+"\n"
+"    添加中文省份数据\n"
+"\n"
+"    增加小企业会计科目表\n"
+"\n"
+"    "
 
 #. module: base
 #: model:ir.module.module,description:base.module_pos_reprint
@@ -8221,7 +8231,7 @@ msgstr "Čekija"
 #. module: base
 #: model:res.country,name:base.ci
 msgid "Côte d'Ivoire"
-msgstr ""
+msgstr "Dramblio Kaulo Kranto Respublika"
 
 #. module: base
 #: model:res.partner.industry,full_name:base.res_partner_industry_D
@@ -11010,7 +11020,7 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_module_uninstall_module_ids
 msgid "Impacted modules"
-msgstr ""
+msgstr "Paveikti moduliai"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_sequence_implementation
@@ -12058,7 +12068,7 @@ msgstr "Iniciatyvos, galimybės, užsiėmimai"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_hr_holidays
 msgid "Leave Management"
-msgstr "Palikti valdymą"
+msgstr "Atostogų valdymas"
 
 #. module: base
 #: model:ir.module.module,summary:base.module_hr_holidays
@@ -12307,7 +12317,7 @@ msgstr "Žurnalai"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_pos_loyalty
 msgid "Loyalty Program"
-msgstr ""
+msgstr "Lojalumo programa"
 
 #. module: base
 #: model:ir.module.module,summary:base.module_pos_loyalty
@@ -17247,7 +17257,7 @@ msgstr "Praleisti"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_website_slides
 msgid "Slides"
-msgstr ""
+msgstr "Skaidrės"
 
 #. module: base
 #: model:res.country,name:base.sk
@@ -19378,7 +19388,7 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_property_value_float
 msgid "Value Float"
-msgstr ""
+msgstr "Skaičiaus su kableliu reikšmė"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_property_value_integer
@@ -20865,14 +20875,14 @@ msgstr "Alandai"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_l10n_cn
 msgid "中国会计科目表"
-msgstr ""
+msgstr "中国会计科目表"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_l10n_cn_small_business
 msgid "中国小企业会计科目表"
-msgstr ""
+msgstr "中国小企业会计科目表"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_l10n_cn_standard
 msgid "会计科目表 - 中国企业会计准则"
-msgstr ""
+msgstr "会计科目表 - 中国企业会计准则"
