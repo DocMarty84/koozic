@@ -76,7 +76,8 @@ class Driver():
         with open(service[0], 'r') as f:
             for line in f:
                 if line.startswith('ExecStart'):
-                    output += 'ExecStart={} -d koozic '.format(os.path.join(self.dir, 'odoo-bin'))
+                    output += 'ExecStart={} -d koozic11 --db-filter=^koozic11$ '.format(
+                            os.path.join(self.dir, 'odoo-bin'))
                     output += '--no-database-list '
                     output += ' '.join([
                         '{}={}'.format(k, v) for k, v in self._compute_options().items()
@@ -152,7 +153,7 @@ class Driver():
 
     def _init_koozic_cmd(self):
         return (
-            'su - {} -c "{}{}odoo-bin -i oomusic,oovideo -d koozic '
+            'su - {} -c "{}{}odoo-bin -i oomusic,oovideo -d koozic11 '
             '--without-demo=all --stop-after-init --log-level=warn"'.format(
                 self.user, self.dir, os.sep
             )
