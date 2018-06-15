@@ -77,6 +77,7 @@ class Driver():
             for line in f:
                 if line.startswith('ExecStart'):
                     output += 'ExecStart={} -d koozic '.format(os.path.join(self.dir, 'odoo-bin'))
+                    output += '--no-database-list '
                     output += ' '.join([
                         '{}={}'.format(k, v) for k, v in self._compute_options().items()
                     ])

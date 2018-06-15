@@ -50,6 +50,9 @@ server {
         proxy_pass http://odoochat;
     }
 
+    # Prevent access to DB manager
+    rewrite ^/web/database(.*)$ / permanent;
+
     # common gzip
     gzip_types text/css text/less text/plain text/xml application/xml application/json application/javascript;
     gzip on;
