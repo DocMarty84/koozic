@@ -573,13 +573,16 @@ var BasicModel = AbstractModel.extend({
     /**
      * Returns true if a record can be abandoned.
      *
-     * A record can be abandonned if it is a new record, except if
-     * this datapoint has been specifically tagged as "do not abandon".
+     * Case for not abandoning the record:
      *
-     * Example:
+     *  1. flagged as 'no abandon' (i.e. during a `default_get`, including any
+     *     `onchange` from a `default_get`)
+     *  2. registered in a list on addition
+     *      2.1. registered as non-new addition
+     *      2.2. registered as new additon on update
+     *  3. record is not new
      *
-     *  - Discard record from "Add an item" => "New" record => abandon
-     *  - Discard record from `default_get`/`onchange` => do not abandon
+     * Otherwise, the record can be abandoned.
      *
      * This is useful when discarding changes on this record, as it means that
      * we must keep the record even if some fields are invalids (e.g. required
@@ -589,7 +592,29 @@ var BasicModel = AbstractModel.extend({
      * @returns {boolean}
      */
     canBeAbandoned: function (id) {
-        return !this.localData[id]._noAbandon && this.isNew(id);
+        // 1. no drop if flagged
+        if (this.localData[id]._noAbandon) {
+            return false;
+        }
+        // 2. no drop in a list on "ADD in some cases
+        var record = this.localData[id];
+        var parent = this.localData[record.parentID];
+        if (parent) {
+            var entry = _.findWhere(parent._savePoint, {operation: 'ADD', id: id});
+            if (entry) {
+                // 2.1. no drop on non-new addition in list
+                if (!entry.isNew) {
+                    return false;
+                }
+                // 2.2. no drop on new addition on "UPDATE"
+                var lastEntry = _.last(parent._savePoint);
+                if (lastEntry.operation === 'UPDATE' && lastEntry.id === id) {
+                    return false;
+                }
+            }
+        }
+        // 3. drop new records
+        return this.isNew(id);
     },
     /**
      * Returns true if a record is dirty. A record is considered dirty if it has
@@ -875,6 +900,15 @@ var BasicModel = AbstractModel.extend({
             // x2Many case: the new record has been stored in _changes, as a
             // command so we remove the command(s) related to that record
             parent._changes = _.filter(parent._changes, function (change) {
+                if (change.id === elementID &&
+                    change.operation === 'ADD' && // For now, only an ADD command increases limits
+                    parent.tempLimitIncrement) {
+                        // The record will be deleted from the _changes.
+                        // So we won't be passing into the logic of _applyX2ManyOperations anymore
+                        // implying that we have to cancel out the effects of an ADD command here
+                        parent.tempLimitIncrement--;
+                        parent.limit--;
+                }
                 return change.id !== elementID;
             });
         } else {
@@ -1542,8 +1576,10 @@ var BasicModel = AbstractModel.extend({
                             rec = self._makeDataPoint(params);
                             list._cache[rec.res_id] = rec.id;
                         }
-
-                        rec._noAbandon = true;
+                        // Do not abandon the record if it has been created
+                        // from `default_get`. The list has a savepoint only
+                        // after having fully executed `default_get`.
+                        rec._noAbandon = !list._savePoint;
                         list._changes.push({operation: 'ADD', id: rec.id});
                         if (command[0] === 1) {
                             list._changes.push({operation: 'UPDATE', id: rec.id});
@@ -1961,6 +1997,7 @@ var BasicModel = AbstractModel.extend({
         var records = [];
         var ids = [];
         list = this._applyX2ManyOperations(list);
+
         _.each(list.data, function (localId) {
             var record = self.localData[localId];
             var data = record._changes || record.data;
@@ -1971,16 +2008,22 @@ var BasicModel = AbstractModel.extend({
             ids.push(many2oneRecord.res_id);
             model = many2oneRecord.model;
         });
+        if (!ids.length) {
+            return $.when();
+        }
         return this._rpc({
                 model: model,
                 method: 'name_get',
-                args: [ids],
+                args: [_.uniq(ids)],
                 context: list.context,
             })
             .then(function (name_gets) {
-                for (var i = 0; i < name_gets.length; i++) {
-                    records[i].data.display_name = name_gets[i][1];
-                }
+                _.each(records, function (record) {
+                    var nameGet = _.find(name_gets, function (nameGet) {
+                        return nameGet[0] === record.data.id;
+                    });
+                    record.data.display_name = nameGet[1];
+                });
             });
     },
     /**
@@ -2466,7 +2509,16 @@ var BasicModel = AbstractModel.extend({
         var self = this;
         var def;
         if (list.static) {
-            def = this._readUngroupedList(list);
+            def = this._readUngroupedList(list).then(function () {
+                if (list.parentID && self.isNew(list.parentID)) {
+                    // list from a default_get, so fetch display_name for many2one fields
+                    var many2ones = self._getMany2OneFieldNames(list);
+                    var defs = _.map(many2ones, function (name) {
+                        return self._fetchNameGets(list, name);
+                    });
+                    return $.when.apply($, defs);
+                }
+            });
         } else {
             def = this._searchReadUngroupedList(list);
         }
@@ -2526,6 +2578,11 @@ var BasicModel = AbstractModel.extend({
                     relationField: field.relation_field,
                     viewType: view ? view.type : fieldInfo.viewType,
                 });
+                // set existing changes to the list
+                if (record._changes && record._changes[fieldName]) {
+                    list._changes = self.localData[record._changes[fieldName]]._changes;
+                    record._changes[fieldName] = list.id;
+                }
                 record.data[fieldName] = list.id;
                 if (!fieldInfo.__no_fetch) {
                     var def = self._readUngroupedList(list).then(function () {
@@ -3035,6 +3092,23 @@ var BasicModel = AbstractModel.extend({
         return Object.keys(fieldsInfo && fieldsInfo[viewType] || {});
     },
     /**
+     * Get many2one fields names in a datapoint. This is useful in order to
+     * fetch their names in the case of a default_get.
+     *
+     * @private
+     * @param {Object} datapoint a valid resource object
+     * @returns {string[]} list of field names that are many2one
+     */
+    _getMany2OneFieldNames: function (datapoint) {
+        var many2ones = [];
+        _.each(datapoint.fields, function (field, name) {
+            if (field.type === 'many2one') {
+                many2ones.push(name);
+            }
+        });
+        return many2ones;
+    },
+    /**
      * Evaluate the record evaluation context.  This method is supposed to be
      * called by _getEvalContext.  It basically only generates a dictionary of
      * current values for the record, with commands for x2manys fields.
@@ -3086,6 +3160,15 @@ var BasicModel = AbstractModel.extend({
                     // when sent to the server, the x2manys values must be a list
                     // of commands in a context, but the list of ids in a domain
                     ids.toJSON = _generateX2ManyCommands.bind(null, fieldName);
+                } else if (field.type === 'one2many') { // Ids are evaluated as a list of ids
+                    /* Filtering out virtual ids from the ids list
+                     * The server will crash if there are virtual ids in there
+                     * The webClient doesn't do literal id list comparison like ids == list
+                     * Only relevant in o2m: m2m does create actual records in db
+                     */
+                    ids = _.filter(ids, function (id) {
+                        return typeof id !== 'string';
+                    });
                 }
                 context[fieldName] = ids;
             }

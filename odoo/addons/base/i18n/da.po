@@ -5280,7 +5280,7 @@ msgstr "Kontonummeret skal være unikt"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_account_taxcloud
 msgid "Account TaxCloud"
-msgstr ""
+msgstr "Konto TaxCloud"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_website_sale_account_taxcloud
@@ -12203,7 +12203,7 @@ msgstr "Lokalisering"
 #. module: base
 #: model:ir.ui.view,arch_db:base.ir_logging_form_view
 msgid "Log"
-msgstr ""
+msgstr "Log"
 
 #. module: base
 #: model:ir.actions.act_window,name:base.ir_logging_all_act

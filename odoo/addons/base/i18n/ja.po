@@ -42,6 +42,15 @@ msgid ""
 "\n"
 "    "
 msgstr ""
+"\n"
+"\n"
+"    科目类型\\会计科目表模板\\增值税\\辅助核算类别\\管理会计凭证簿\\财务会计凭证簿\n"
+"\n"
+"    添加中文省份数据\n"
+"\n"
+"    增加小企业会计科目表\n"
+"\n"
+"    "
 
 #. module: base
 #: model:ir.module.module,description:base.module_pos_reprint
@@ -6581,7 +6590,7 @@ msgstr "アクション"
 #. module: base
 #: model:ir.ui.view,arch_db:base.action_view_company_form_link_2_currencies
 msgid "Activate more currencies"
-msgstr ""
+msgstr "他の通貨を有効化"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_cron_active
@@ -19275,7 +19284,7 @@ msgstr "次のモジュールがアンインストールされます。"
 #. module: base
 #: model:ir.ui.view,arch_db:base.view_base_module_uninstall
 msgid "The following documents will be permanently lost"
-msgstr ""
+msgstr "次のドキュメントは恒久的に削除されます。"
 
 #. module: base
 #: code:addons/base/module/wizard/base_module_upgrade.py:69
