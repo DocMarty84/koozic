@@ -2,25 +2,18 @@
 # This file contains the translation of the following modules:
 # * web_tour
 # 
-# Translators:
-# Marcin Młynarczyk <mlynarczyk@gmail.com>, 2017
-# Piotr Szlązak <szlazakpiotr@gmail.com>, 2017
-# Judyta Kaźmierczak <judyta.kazmierczak@openglobe.pl>, 2017
-# zbik2607 <darek@krokus.com.pl>, 2017
-# Maja Stawicka <mjstwck@wp.pl>, 2018
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 10.saas~18\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2017-09-20 09:54+0000\n"
 "PO-Revision-Date: 2017-09-20 09:54+0000\n"
-"Last-Translator: Maja Stawicka <mjstwck@wp.pl>, 2018\n"
-"Language-Team: Polish (https://www.transifex.com/odoo/teams/41243/pl/)\n"
+"Language-Team: Swahili (https://www.transifex.com/odoo/teams/41243/sw/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
-"Language: pl\n"
-"Plural-Forms: nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);\n"
+"Language: sw\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. module: web_tour
 #. openerp-web
@@ -28,12 +21,11 @@ msgstr ""
 #, python-format
 msgid "Click the <i>Home icon</i> to navigate across apps."
 msgstr ""
-"Kliknij <i>ikonę Strony głównej</i> do przenoszenia się między aplikacjami."
 
 #. module: web_tour
 #: model:ir.model.fields,field_description:web_tour.field_web_tour_tour_user_id
 msgid "Consumed by"
-msgstr "Zużyte przez"
+msgstr ""
 
 #. module: web_tour
 #. openerp-web
@@ -45,48 +37,48 @@ msgstr ""
 #. module: web_tour
 #: model:ir.model.fields,field_description:web_tour.field_web_tour_tour_display_name
 msgid "Display Name"
-msgstr "Nazwa wyświetlana"
+msgstr ""
 
 #. module: web_tour
 #: model:ir.model,name:web_tour.model_ir_http
 msgid "HTTP routing"
-msgstr "routing HTTP"
+msgstr ""
 
 #. module: web_tour
 #: model:ir.model.fields,field_description:web_tour.field_web_tour_tour_id
 msgid "ID"
-msgstr "ID"
+msgstr ""
 
 #. module: web_tour
 #: model:ir.model.fields,field_description:web_tour.field_web_tour_tour___last_update
 msgid "Last Modified on"
-msgstr "Data ostatniej modyfikacji"
+msgstr ""
 
 #. module: web_tour
 #: model:ir.ui.view,arch_db:web_tour.edit_tour_list
 msgid "Menu"
-msgstr "Menu"
+msgstr ""
 
 #. module: web_tour
 #. openerp-web
 #: code:addons/web_tour/static/src/xml/debug_manager.xml:21
 #, python-format
 msgid "Name"
-msgstr "Nazwa"
+msgstr ""
 
 #. module: web_tour
 #. openerp-web
 #: code:addons/web_tour/static/src/xml/debug_manager.xml:22
 #, python-format
 msgid "Path"
-msgstr "Ścieżka"
+msgstr ""
 
 #. module: web_tour
 #. openerp-web
 #: code:addons/web_tour/static/src/js/tour_manager.js:198
 #, python-format
 msgid "Skip tour"
-msgstr "Pomiń samouczek"
+msgstr ""
 
 #. module: web_tour
 #. openerp-web
@@ -98,7 +90,7 @@ msgstr ""
 #. module: web_tour
 #: model:ir.ui.view,arch_db:web_tour.edit_tour_search
 msgid "Tip"
-msgstr "Wskazówka"
+msgstr ""
 
 #. module: web_tour
 #: model:ir.model.fields,field_description:web_tour.field_web_tour_tour_name
@@ -110,4 +102,4 @@ msgstr ""
 #: model:ir.model,name:web_tour.model_web_tour_tour
 #: model:ir.ui.menu,name:web_tour.menu_tour_action
 msgid "Tours"
-msgstr "Samouczki"
+msgstr ""

@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from subprocess import Popen, PIPE
 from collections import OrderedDict
-from odoo import fields, tools
+from odoo import fields, tools, SUPERUSER_ID
 from odoo.tools.pycompat import string_types, to_text
 from odoo.http import request
 from odoo.modules.module import get_resource_path
@@ -102,8 +102,11 @@ class AssetsBundle(object):
                 self.javascripts.append(JavascriptAsset(self, url=f['url'], filename=f['filename'], inline=f['content']))
 
     # depreciated and will remove after v11
-    def to_html(self, sep=None, css=True, js=True, debug=False, async=False, url_for=(lambda url: url)):
-        nodes = self.to_node(css=css, js=js, debug=debug, async=async)
+    def to_html(self, sep=None, css=True, js=True, debug=False, async_load=False, url_for=(lambda url: url), **kw):
+        if 'async' in kw:
+            _logger.warning("Using deprecated argument 'async' in to_html call, use 'async_load' instead.")
+            async_load = kw['async']
+        nodes = self.to_node(css=css, js=js, debug=debug, async_load=async_load)
 
         if sep is None:
             sep = u'\n            '
@@ -121,10 +124,13 @@ class AssetsBundle(object):
 
         return sep + sep.join(response)
 
-    def to_node(self, css=True, js=True, debug=False, async=False):
+    def to_node(self, css=True, js=True, debug=False, async_load=False, **kw):
         """
         :returns [(tagName, attributes, content)] if the tag is auto close
         """
+        if 'async' in kw:
+            _logger.warning("Using deprecated argument 'async' in to_node call, use 'async_load' instead.")
+            async_load = kw['async']
         response = []
         if debug == 'assets':
             if css and self.stylesheets:
@@ -157,7 +163,7 @@ class AssetsBundle(object):
                     response.append(JavascriptAsset(self, inline=self.dialog_message(msg)).to_node())
             if js and self.javascripts:
                 attr = OrderedDict([
-                    ["async", "async" if async else None],
+                    ["async", "async" if async_load else None],
                     ["type", "text/javascript"],
                     ["src", self.js().url],
                 ])
@@ -224,10 +230,11 @@ class AssetsBundle(object):
         self.env.cr.execute("""
              SELECT max(id)
                FROM ir_attachment
-              WHERE url like %s
+              WHERE create_uid = %s
+                AND url like %s
            GROUP BY datas_fname
            ORDER BY datas_fname
-         """, [url_pattern])
+         """, [SUPERUSER_ID, url_pattern])
         attachment_ids = [r[0] for r in self.env.cr.fetchall()]
         return self.env['ir.attachment'].sudo().browse(attachment_ids)
 
