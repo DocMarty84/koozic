@@ -5,6 +5,7 @@ from collections import OrderedDict
 from glob import glob
 from multiprocessing import cpu_count
 import os
+import pwd
 from shutil import copyfileobj, move, rmtree
 import subprocess as s
 import sys
@@ -74,24 +75,34 @@ class Driver():
         s.call(self._init_koozic_cmd(), shell=True)
 
     def enable_systemd(self):
+        # Create koozic@.service file
         service = glob(
             os.path.join(self.dir, 'extra', 'linux-systemd', 'system', 'koozic@.service'))
         output = ''
         with open(service[0], 'r') as f:
             for line in f:
                 if line.startswith('ExecStart'):
-                    output += 'ExecStart={} -d koozic11 --db-filter=^koozic11$ '.format(
-                            os.path.join(self.dir, 'odoo-bin'))
-                    output += '--no-database-list '
-                    output += ' '.join([
-                        '{}={}'.format(k, v) for k, v in self._compute_options().items()
-                    ])
-                    output += '\n'
+                    output += 'ExecStart={}\n'.format(os.path.join(self.dir, 'odoo-bin'))
                 else:
                     output += '{}'.format(line)
-
         with open(os.path.join(os.sep, 'etc', 'systemd', 'system', 'koozic@.service'), 'w') as f:
             f.write(output)
+
+        # Create ~/.odoorc file
+        output = '[options]\n'
+        output += '\n'.join([
+            '{} = {}'.format(k, v) for k, v in self._compute_options().items()
+        ])
+        output += '\n'
+        output += '\n'.join([
+            '#{} = {}'.format(k, v) for k, v in self._default_options().items()
+        ])
+        output += '\n'
+        odoorc_path = os.path.expanduser('~{}/.odoorc'.format(self.user))
+        with open(odoorc_path, 'w') as f:
+            f.write(output)
+        os.chown(odoorc_path, user=pwd.getpwnam(self.user).pw_uid)
+        os.chmod(odoorc_path, '0o640')
 
         s.call(['systemctl', 'enable', 'koozic@{}.service'.format(self.user)])
         s.call(['systemctl', 'start', 'koozic@{}.service'.format(self.user)])
@@ -106,6 +117,7 @@ class Driver():
     def clean_files(self):
         to_delete = [
             os.path.expanduser('~{}/.local/share/Odoo'.format(self.user)),
+            os.path.expanduser('~{}/.odoorc'.format(self.user)),
             os.path.join(os.sep, 'etc', 'systemd', 'system', 'koozic@.service'),
             os.path.join(os.sep, 'etc', 'koozic-install.conf'),
             os.path.join(os.sep, 'usr', 'local', 'bin', 'ffmpeg'),
@@ -171,12 +183,15 @@ class Driver():
         limit_memory_soft = min(max_mem / (workers + max_cron_threads), 2048 * 1024 ** 2)
         limit_memory_hard = max_mem * 0.90
         return {
-            '--workers': workers,
-            '--max-cron-threads': max_cron_threads,
-            '--limit-memory-soft': max(256 * 1024 ** 2, int(limit_memory_soft)),
-            '--limit-memory-hard': max(1024 ** 3, int(limit_memory_hard)),
-            '--limit-time-cpu': 1800,
-            '--limit-time-real': 3600,
+            'db_name': 'koozic11',
+            'dbfilter': '^koozic11$',
+            'limit_memory_hard': max(1024 ** 3, int(limit_memory_hard)),
+            'limit_memory_soft': max(256 * 1024 ** 2, int(limit_memory_soft)),
+            'limit_time_cpu': 1800,
+            'limit_time_real': 3600,
+            'list_db': False,
+            'max_cron_threads': max_cron_threads,
+            'workers': workers,
         }
 
     def _ask_user(self, question):
