@@ -13,6 +13,8 @@ import tarfile
 from tempfile import NamedTemporaryFile
 import urllib.request
 
+BRANCH = '11'
+DB_NAME = 'koozic{}'.format(BRANCH)
 DOWN_URL = 'https://github.com/DocMarty84/koozic/releases/download/{v}/koozic-{v}.tar.gz'
 
 
@@ -101,8 +103,8 @@ class Driver():
         odoorc_path = os.path.expanduser('~{}/.odoorc'.format(self.user))
         with open(odoorc_path, 'w') as f:
             f.write(output)
-        os.chown(odoorc_path, user=pwd.getpwnam(self.user).pw_uid)
-        os.chmod(odoorc_path, '0o640')
+        os.chown(odoorc_path, pwd.getpwnam(self.user).pw_uid, -1)
+        os.chmod(odoorc_path, 0o640)
 
         s.call(['systemctl', 'enable', 'koozic@{}.service'.format(self.user)])
         s.call(['systemctl', 'start', 'koozic@{}.service'.format(self.user)])
@@ -112,7 +114,7 @@ class Driver():
             s.call(['systemctl', 'stop', 'koozic@{}.service'.format(self.user)])
             s.call(['systemctl', 'disable', 'koozic@{}.service'.format(self.user)])
         if self._ask_user('Do you want to drop the KooZic database? '):
-            s.call('su - {} -c "dropdb koozic"'.format(self.user), shell=True)
+            s.call('su - {} -c "dropdb {}"'.format(self.user, DB_NAME), shell=True)
 
     def clean_files(self):
         to_delete = [
@@ -169,9 +171,9 @@ class Driver():
 
     def _init_koozic_cmd(self):
         return (
-            'su - {} -c "{}{}odoo-bin -i oomusic,oovideo -d koozic11 '
+            'su - {} -c "{}{}odoo-bin -i oomusic,oovideo -d {} '
             '--without-demo=all --stop-after-init --log-level=warn"'.format(
-                self.user, self.dir, os.sep
+                self.user, self.dir, os.sep, DB_NAME
             )
         )
 
@@ -183,8 +185,8 @@ class Driver():
         limit_memory_soft = min(max_mem / (workers + max_cron_threads), 2048 * 1024 ** 2)
         limit_memory_hard = max_mem * 0.90
         return {
-            'db_name': 'koozic11',
-            'dbfilter': '^koozic11$',
+            'db_name': DB_NAME,
+            'dbfilter': '^{}$'.format(DB_NAME),
             'limit_memory_hard': max(1024 ** 3, int(limit_memory_hard)),
             'limit_memory_soft': max(256 * 1024 ** 2, int(limit_memory_soft)),
             'limit_time_cpu': 1800,
@@ -628,14 +630,14 @@ parser.add_argument('-d', '--directory', default='/opt', help='install directory
 args = parser.parse_args()
 
 # Get latest version
-url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/11.0/VERSIONS.md'
+url_versions = 'https://raw.githubusercontent.com/DocMarty84/koozic/{}.0/VERSIONS.md'.format(BRANCH)
 with urllib.request.urlopen(url_versions) as response:
     version = response.readline()[:-1].decode('utf-8')
     DOWN_URL = DOWN_URL.format(v=version)
 
 if args.mode == 'install':
     # Check directory
-    dir = os.path.join(args.directory, 'koozic')
+    dir = os.path.join(args.directory, 'koozic{}'.format(BRANCH))
     if os.path.exists(dir):
         sys.exit(
             'Directory {} already exists. Delete this directory of choose another one.'
