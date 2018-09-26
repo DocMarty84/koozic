@@ -5,7 +5,7 @@ from collections import OrderedDict
 from glob import glob
 from multiprocessing import cpu_count
 import os
-from shutil import copyfileobj, rmtree
+from shutil import copyfileobj, move, rmtree
 import subprocess as s
 import sys
 import tarfile
@@ -26,12 +26,16 @@ class Driver():
         return setattr(self, key, val)
 
     def set_config(self):
-        with open(os.path.join(os.sep, 'etc', 'odoo.conf'), 'w') as f:
+        with open(os.path.join(os.sep, 'etc', 'koozic-install.conf'), 'w') as f:
             f.write('USER={}\n'.format(self.user))
             f.write('DIR={}\n'.format(self.dir))
 
     def get_config(self):
-        fn = os.path.join(os.sep, 'etc', 'odoo.conf')
+        fn = os.path.join(os.sep, 'etc', 'koozic-install.conf')
+        # Move old config file if necessary
+        fn_old = os.path.join(os.sep, 'etc', 'odoo.conf')
+        if os.path.isfile(fn_old):
+            move(fn_old, fn)
         if not os.path.isfile(fn):
             sys.exit('Configuration file {} could not be found! Exiting...'.format(fn))
         with open(fn, 'r') as f:
@@ -103,7 +107,7 @@ class Driver():
         to_delete = [
             os.path.expanduser('~{}/.local/share/Odoo'.format(self.user)),
             os.path.join(os.sep, 'etc', 'systemd', 'system', 'koozic@.service'),
-            os.path.join(os.sep, 'etc', 'koozic.conf'),
+            os.path.join(os.sep, 'etc', 'koozic-install.conf'),
             os.path.join(os.sep, 'usr', 'local', 'bin', 'ffmpeg'),
             self.dir,
         ]
