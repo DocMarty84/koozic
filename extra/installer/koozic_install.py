@@ -196,6 +196,60 @@ class Driver():
             'workers': workers,
         }
 
+    def _default_options(self):
+        addons_path = (
+            os.path.join(self.dir, 'odoo', 'addons') + ',' + os.path.join(self.dir, 'addons')
+        )
+        return {
+            'addons_path': addons_path,
+            'admin_passwd': 'admin',
+            'csv_internal_sep': ',',
+            'data_dir': os.path.expanduser('~{}/.local/share/Odoo'.format(self.user)),
+            'db_host': 'False',
+            'db_maxconn': 64,
+            'db_password': 'False',
+            'db_port': 'False',
+            'db_sslmode': 'prefer',
+            'db_template': 'template1',
+            'db_user': 'False',
+            'demo': '{}',
+            'email_from': 'False',
+            'geoip_database': '/usr/share/GeoIP/GeoLite2-City.mmdb',
+            'http_enable': 'True',
+            'http_interface': '',
+            'http_port': 8069,
+            'import_partial': '',
+            'limit_request': 8192,
+            'limit_time_real_cron': -1,
+            'log_db': 'False',
+            'log_db_level': 'warning',
+            'log_handler': ':INFO',
+            'log_level': 'info',
+            'logfile': 'None',
+            'logrotate': 'False',
+            'longpolling_port': 8072,
+            'osv_memory_age_limit': 1.0,
+            'osv_memory_count_limit': 'False',
+            'pg_path': 'None',
+            'pidfile': 'None',
+            'proxy_mode': 'False',
+            'reportgz': 'False',
+            'server_wide_modules': 'web',
+            'smtp_password': 'False',
+            'smtp_port': 25,
+            'smtp_server': 'localhost',
+            'smtp_ssl': 'False',
+            'smtp_user': 'False',
+            'syslog': 'False',
+            'test_commit': 'False',
+            'test_enable': 'False',
+            'test_file': 'False',
+            'test_report_directory': 'False',
+            'translate_modules': '[\'all\']',
+            'unaccent': 'False',
+            'without_demo': 'False',
+        }
+
     def _ask_user(self, question):
         accepted_answers = ['y', 'n', 'yes', 'no']
         while True:
