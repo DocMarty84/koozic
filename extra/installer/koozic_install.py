@@ -627,7 +627,7 @@ def get_driver(args):
     os_choices['3'] = ('Debian 9', DriverDebian9)
     os_choices['4'] = ('Fedora 27 / 28', DriverFedora27)
     os_choices['5'] = ('CentOS 7.4', DriverCentos74)
-    os_choices['6'] = ('ArchLinux', DriverArch)
+    # os_choices['6'] = ('ArchLinux', DriverArch)
 
     print('Choose your operating system:')
     while True:
