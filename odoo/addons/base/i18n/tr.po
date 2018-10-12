@@ -51,6 +51,9 @@ msgid ""
 "\n"
 "    "
 msgstr ""
+"\n"
+"\n"
+"Çin için hesap planları ve eyalet verileri"
 
 #. module: base
 #: model:ir.module.module,description:base.module_pos_reprint
@@ -82,14 +85,14 @@ msgid ""
 msgstr ""
 "\n"
 "\n"
-"Macar lokalizasyonu için bazı modüller\n"
+"Macaristan lokalizasyonu için bazı modüller\n"
 "==========================================\n"
 "\n"
-"This module consists :\n"
+"Bu modül içeriği :\n"
 "\n"
-" - Generic Hungarian chart of accounts\n"
-" - Hungarian taxes\n"
-" - Hungarian Bank information\n"
+" - Macaristan Hesap Planını Oluşturma\n"
+" - Macaristan Vergileri\n"
+" - Macaristan Bankaları \n"
 " \n"
 " "
 
@@ -200,8 +203,8 @@ msgid ""
 msgstr ""
 "\n"
 "Gelir tahakkuku\n"
-"Ürün satışlarınızda gelir muhasebenizi yönetin.\n"
-"Gelir tahakkuk taksitlerini takip eder ve ilgili yevmiye girişlerini oluşturur."
+"Ürün satışlarınızda gelir tahakkuklarını yönetin.\n"
+"Gelir tahakkuk taksitlerini takip eder ve ilgili yevmiye kayıtlarını oluşturur."
 
 #. module: base
 #: code:addons/base/res/res_config.py:315
@@ -223,7 +226,8 @@ msgid ""
 "This module adds a custom Sales Channel for the point of sale to be able to view and manage your point of sale sales with more ease.\n"
 msgstr ""
 "\n"
-"Bu modül, satış noktasınızın daha kolay yönetilebilmesi ve görüntülenebilmesi için özel satış kanalı ekler.\n"
+"\n"
+"Bu modül, satış noktanızı daha kolay bir şekilde görüntüleyebilmeniz ve yönetebilmeniz için satış noktasına özel bir Satış Kanalı ekler..\n"
 
 #. module: base
 #: model:ir.module.module,description:base.module_pos_restaurant
@@ -237,13 +241,13 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"Bu modül çeşitli restoran özelliklerini satış noktaına ekler: \n"
+"Bu modül, çeşitli restoran özelliklerini satış noktalarına ekler: \n"
 "\n"
-"- Hesap Yazdırma: Ödeme öncesinde makbuz yazdırılmasına olanak sağlar \n"
+"- Fatura Yazdırma: Ödeme öncesinde fiş yazdırılmasına olanak sağlar \n"
 "\n"
-"- Hesap Bölme: Bir siparişi birden fazla siparişe bölmeye olanak sağlar \n"
+"- Fatura Bölme: Bir siparişi birden fazla siparişe bölmeye olanak sağlar \n"
 "\n"
-"- Mutfak Sipariş Yazdırma: Sipariş değişikliklerini mutfak veya bar yazıcılarından yazdırılmasına olanak sağlar\n"
+"- Mutfak Siparişi Yazdırma: Sipariş değişikliklerini mutfak veya bar yazıcılarından yazdırılmasına olanak sağlar\n"
 
 #. module: base
 #: model:ir.module.module,description:base.module_pos_discount
@@ -255,7 +259,8 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
-"Bu modül kasiyerin müşteriye hızlı bir şekilde satış indirimini yüzdesini vermesine izin verir.\n"
+"\n"
+"Bu modül, kasiyerin müşteriye hızlı bir şekilde satış indirimi yüzdesi vermesine izin verir.\n"
 
 #. module: base
 #: model:ir.module.module,description:base.module_pos_loyalty
@@ -268,7 +273,9 @@ msgid ""
 "\n"
 msgstr ""
 "\n"
+"\n"
 "Bu modül, satış noktasında müşterilerinizin sadakat puanı kazanıp ödüller kazanabileceği sadakat programı tanımlamanızı sağlar.\n"
+"\n"
 
 #. module: base
 #: code:addons/model.py:136
@@ -354,7 +361,7 @@ msgid ""
 msgstr ""
 "\n"
 "Python kodu olarak tanımlanan bir vergi, birim fiyat, ürün veya iş ortağı gibi verileri içeren yerel bir ortamda yürütülen iki python kod snippet'lerinden oluşur.\n"
-"'Uygulanabilir Kod',  uygulanabilecekse tanımlar\n"
+"\"Uygulanabilir Kod\", verginin uygulanıp uygulanmayacağını tanımlar.\n"
 "\n"
 "\"Python Kod' verginin miktarını tanımlar."
 
@@ -6432,7 +6439,7 @@ msgstr ":B10    16  31 x 44 mm"
 #. module: base
 #: model:ir.actions.act_window,help:base.open_module_tree
 msgid "<b>No module found!</b>"
-msgstr ""
+msgstr "<b>Modül bulunamadı!</b>"
 
 #. module: base
 #: model:ir.ui.view,arch_db:base.view_server_action_form
@@ -7122,7 +7129,7 @@ msgstr "Acess Token"
 #. module: base
 #: model:res.groups,name:base.group_private_addresses
 msgid "Access to Private Addresses"
-msgstr ""
+msgstr "Kişisel Adreslere Erişim"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_account_analytic_default
@@ -7197,7 +7204,7 @@ msgstr "Muhasebe & Finans"
 #. module: base
 #: model:ir.module.category,name:base.module_category_accounting_andamp;_finance
 msgid "Accounting &amp; Finance"
-msgstr ""
+msgstr "Muhasebe &amp; Finans"
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_mrp_account
@@ -18510,7 +18517,7 @@ msgstr ""
 #. module: base
 #: model:res.country,vat_label:base.do
 msgid "RNC"
-msgstr ""
+msgstr "RNC"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_currency_rate_rate
