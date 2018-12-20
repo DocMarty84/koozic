@@ -1,5 +1,5 @@
 FROM debian:stretch
-MAINTAINER DocMarty84 <nicolas.martinelli@gmail.com>
+MAINTAINER DocMarty84 <nicolas.martinelli@pm.me>
 
 # Set up user and mount point
 RUN set -x; \
@@ -27,10 +27,10 @@ RUN set -x; \
             libtag1-dev \
             lsb-base \
             mediainfo \
-            node-less \
             postgresql \
             postgresql-client \
             python3-babel \
+            python3-chardet \
             python3-dateutil \
             python3-decorator \
             python3-dev \
@@ -39,6 +39,7 @@ RUN set -x; \
             python3-gevent \
             python3-html2text \
             python3-jinja2 \
+            python3-libsass \
             python3-lxml \
             python3-mako \
             python3-mock \
@@ -69,17 +70,17 @@ RUN set -x; \
 # Install pip dependencies
 RUN set -x; \
         pip3 install \
-            mutagen==1.40.0 \
-            pytaglib==1.4.1
+            mutagen==1.41.1 \
+            pytaglib==1.4.4
 
 # Install KooZic
 RUN set -x; \
-        v=v1.1.0 && \
+        v=v2.0.0 && \
         wget -q https://github.com/DocMarty84/koozic/releases/download/${v}/koozic-${v}.tar.gz && \
         tar xfz koozic-*.tar.gz && \
         rm -rf koozic-*.tar.gz
 RUN set -x; \
-        tar xfz koozic/extra/ffmpeg/ffmpeg-3.4-64bit.tar.gz -C /usr/local/bin && \
+        tar xfz koozic/extra/ffmpeg/ffmpeg-*-64bit.tar.gz -C /usr/local/bin && \
         mv koozic /usr/local/ && \
         chown -R koozic /usr/local/koozic
 

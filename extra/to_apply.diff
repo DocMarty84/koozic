@@ -1,21 +1,8 @@
-diff --git a/odoo/addons/base/base_data.xml b/odoo/addons/base/base_data.xml
-index ed6359c..6ea31a9 100644
---- a/odoo/addons/base/base_data.xml
-+++ b/odoo/addons/base/base_data.xml
-@@ -39,6 +39,7 @@
-             <field name="phone"></field>
-             <field name="email">info@yourcompany.com</field>
-             <field name="website">www.yourcompany.com</field>
-+            <field name="image" type="base64" file="base/res/res_company_logo.png"/>
-         </record>
-
-         <!-- Basic Company  -->
-
 diff --git a/addons/web/static/src/js/chrome/user_menu.js b/addons/web/static/src/js/chrome/user_menu.js
-index 84c16b5..39e8609 100644
+index fd3af24cb1f..857cd4b8c17 100644
 --- a/addons/web/static/src/js/chrome/user_menu.js
 +++ b/addons/web/static/src/js/chrome/user_menu.js
-@@ -74,7 +74,7 @@ var UserMenu = Widget.extend({
+@@ -78,7 +78,7 @@ var UserMenu = Widget.extend({
       * @private
       */
      _onMenuDocumentation: function () {
@@ -24,23 +11,36 @@ index 84c16b5..39e8609 100644
      },
      /**
       * @private
-@@ -109,7 +109,7 @@ var UserMenu = Widget.extend({
+@@ -113,7 +113,7 @@ var UserMenu = Widget.extend({
       * @private
       */
      _onMenuSupport: function () {
 -        window.open('https://www.odoo.com/buy', '_blank');
 +        window.open('https://github.com/DocMarty84/koozic/issues', '_blank');
      },
- });
-
+     /**
+      * @private
 diff --git a/addons/web/static/src/xml/base.xml b/addons/web/static/src/xml/base.xml
-index 82a2e79..65416eb 100644
+index 1eef5047f46..f2a1c8bebd5 100644
 --- a/addons/web/static/src/xml/base.xml
 +++ b/addons/web/static/src/xml/base.xml
-@@ -1331,7 +1331,6 @@
-     <li><a href="#" data-menu="support">Support</a></li>
-     <li class="divider"/>
-     <li><a href="#" data-menu="settings">Preferences</a></li>
--    <li><a href="#" data-menu="account">My Odoo.com account</a></li>
-     <li><a href="#" data-menu="logout">Log out</a></li>
+@@ -1547,7 +1547,6 @@
+     <a role="menuitem" href="#" data-menu="support" class="dropdown-item">Support</a>
+     <div role="separator" class="dropdown-divider"/>
+     <a role="menuitem" href="#" data-menu="settings" class="dropdown-item">Preferences</a>
+-    <a role="menuitem" href="#" data-menu="account" class="dropdown-item">My Odoo.com account</a>
+     <a role="menuitem" href="#" data-menu="logout" class="dropdown-item">Log out</a>
  </t>
+ 
+diff --git a/odoo/addons/base/__manifest__.py b/odoo/addons/base/__manifest__.py
+index d47214a5ce9..637656cb70a 100644
+--- a/odoo/addons/base/__manifest__.py
++++ b/odoo/addons/base/__manifest__.py
+@@ -46,7 +46,6 @@ The kernel of Odoo, needed for all installation.
+         'views/ir_qweb_widget_templates.xml',
+         'views/ir_module_views.xml',
+         'data/ir_module_category_data.xml',
+-        'data/ir_module_module.xml',
+         'report/ir_module_reports.xml',
+         'report/ir_module_report_templates.xml',
+         'wizard/base_module_update_views.xml',

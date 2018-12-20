@@ -1,9 +1,9 @@
 This folder provides a basic Docker configuration file in order to run a fully functional KooZic
 installation. It includes:
 - Debian 9
-- KooZic 1.0.0
+- KooZic 2.0.0
 - PostgreSQL 9.6
-- FFmpeg 3.4
+- FFmpeg 4.1
 
 By default, it is configured to take advantage of multi-processing. The container runs its own
 PostgreSQL server on port 54321. Therefore, the latter should be available on your host system.
