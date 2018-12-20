@@ -1,8 +1,9 @@
 odoo.define('web.view_dialogs_tests', function (require) {
 "use strict";
 
-var testUtils = require('web.test_utils');
 var dialogs = require('web.view_dialogs');
+var ListController = require('web.ListController');
+var testUtils = require('web.test_utils');
 var Widget = require('web.Widget');
 var FormView = require('web.FormView');
 
@@ -24,7 +25,6 @@ QUnit.module('Views', {
                     {id: 3, foo: 'piou piou', display_name: "Jack O'Neill", bar: true},
                 ],
             },
-
             instrument: {
                 fields: {
                     name: {string: "name", type: "char"},
@@ -81,7 +81,7 @@ QUnit.module('Views', {
         });
 
         testUtils.intercept(parent, 'env_updated', function () {
-            throw new Error("The environment should not be propagated to the view manager");
+            throw new Error("The environment should not be propagated to the action manager");
         });
 
 
@@ -90,9 +90,9 @@ QUnit.module('Views', {
             res_id: 1,
         }).open();
 
-        assert.notOk($('div.modal .modal-body button').length,
+        assert.notOk($('.modal-body button').length,
             "should not have any button in body");
-        assert.strictEqual($('div.modal .modal-footer button').length, 1,
+        assert.strictEqual($('.modal-footer button').length, 1,
             "should have only one button in footer");
         parent.destroy();
     });
@@ -118,7 +118,7 @@ QUnit.module('Views', {
             res_id: 1,
         }).open();
 
-        assert.strictEqual($('div.modal button.btn-primary').length, 1,
+        assert.strictEqual($('.modal button.btn-primary').length, 1,
             "should have 1 buttons in modal");
 
         $('.o_field_x2many_list_row_add a').click();
@@ -127,7 +127,7 @@ QUnit.module('Views', {
             keyCode: $.ui.keyCode.ESCAPE,
         }));
 
-        assert.strictEqual($('div.modal button.btn-primary').length, 1,
+        assert.strictEqual($('.modal button.btn-primary').length, 1,
             "should still have 1 buttons in modal");
         parent.destroy();
     });
@@ -153,8 +153,7 @@ QUnit.module('Views', {
                     '</search>',
             },
             mockRPC: function (route, args) {
-                search++;
-                if (search === 1 && args.method === 'read_group') {
+                if (args.method === 'read_group') {
                     assert.deepEqual(args.kwargs, {
                         context: {group_by: "bar"},
                         domain: [["display_name","like","a"], ["display_name","ilike","piou"], ["foo","ilike","piou"]],
@@ -164,7 +163,8 @@ QUnit.module('Views', {
                         lazy: true
                     }, "should search with the complete domain (domain + search), and group by 'bar'");
                 }
-                if (search === 2 && route === '/web/dataset/search_read') {
+                if (search === 0 && route === '/web/dataset/search_read') {
+                    search++;
                     assert.deepEqual(args, {
                         context: {},
                         domain: [["display_name","like","a"], ["display_name","ilike","piou"], ["foo","ilike","piou"]],
@@ -173,8 +173,7 @@ QUnit.module('Views', {
                         limit: 80,
                         sort: ""
                     }, "should search with the complete domain (domain + search)");
-                }
-                if (search === 3 && route === '/web/dataset/search_read') {
+                } else if (search === 1 && route === '/web/dataset/search_read') {
                     assert.deepEqual(args, {
                         context: {},
                         domain: [["display_name","like","a"]],
@@ -322,7 +321,7 @@ QUnit.module('Views', {
                     return $.when(false);
                 }
                 if (route === '/web/dataset/call_kw/instrument/create') {
-                    assert.deepEqual(args.args, [{badassery: [[6, false, [1]]], name: false}], 
+                    assert.deepEqual(args.args, [{badassery: [[6, false, [1]]], name: false}],
                         'The method create should have been called with the right arguments');
                     return $.when(false);
                 }
@@ -335,24 +334,24 @@ QUnit.module('Views', {
         form.$('.o_field_widget .o_field_many2one[name=instrument] input').click();
         $('ul.ui-autocomplete.ui-front.ui-menu.ui-widget.ui-widget-content li.o_m2o_dropdown_option').first().click();
 
-        var $modal = $('.modal-dialog.modal-lg');
+        var $modal = $('.modal-lg');
 
         assert.equal($modal.length, 1,
             'There should be one modal');
 
         $modal.find('.o_field_x2many_list_row_add a').click();
 
-        var $modals = $('.modal-dialog.modal-lg');
+        var $modals = $('.modal-lg');
 
         assert.equal($modals.length, 2,
             'There should be two modals');
 
         var $second_modal = $modals.not($modal);
-        $second_modal.find('.o_list_view.table.table-condensed.table-striped.o_list_view_ungrouped .o_data_row input[type=checkbox]').click();
+        $second_modal.find('.o_list_view.table.table-sm.table-striped.o_list_view_ungrouped .o_data_row input[type=checkbox]').click();
 
         $second_modal.find('.o_select_button').click();
 
-        $modal = $('.modal-dialog.modal-lg');
+        $modal = $('.modal-lg');
 
         assert.equal($modal.length, 1,
             'There should be one modal');
@@ -360,7 +359,7 @@ QUnit.module('Views', {
         assert.equal($modal.find('.o_data_cell').text(), 'Awsome',
             'There should be one item in the list of the modal');
 
-        $modal.find('.btn.btn-sm.btn-primary').click();
+        $modal.find('.btn.btn-primary').click();
 
         form.destroy();
     });
@@ -403,7 +402,7 @@ QUnit.module('Views', {
 
             interceptsPropagate: {
                 load_views: function (ev) {
-                    var evaluatedContext = ev.data.context.eval();
+                    var evaluatedContext = ev.data.context;
                     if (ev.data.modelName === 'instrument') {
                         assert.deepEqual(evaluatedContext, {tree_view_ref: 'some_tree_view'},
                             'The correct _view_ref should have been sent to the server, first time');
@@ -420,6 +419,123 @@ QUnit.module('Views', {
         form.destroy();
     });
 
+    QUnit.test('SelectCreateDialog: save current search', function (assert) {
+        assert.expect(4);
+
+        testUtils.patch(ListController, {
+            getContext: function () {
+                return {
+                    shouldBeInFilterContext: true,
+                };
+            },
+        });
+
+        var parent = createParent({
+            data: this.data,
+            archs: {
+                'partner,false,list':
+                    '<tree>' +
+                        '<field name="display_name"/>' +
+                    '</tree>',
+                'partner,false,search':
+                    '<search>' +
+                       '<filter name="bar" help="Bar" domain="[(\'bar\', \'=\', True)]"/>' +
+                    '</search>',
+
+            },
+            intercepts: {
+                create_filter: function (event) {
+                    var filter = event.data.filter;
+                    assert.deepEqual(filter.domain, "[('bar', '=', True)]",
+                        "should save the correct domain");
+                    assert.deepEqual(filter.context, {shouldBeInFilterContext: true},
+                        "should save the correct context");
+                },
+            },
+        });
+
+        var dialog = new dialogs.SelectCreateDialog(parent, {
+            context: {shouldNotBeInFilterContext: false},
+            res_model: 'partner',
+        }).open();
+
+        assert.strictEqual(dialog.$('.o_data_row').length, 3,
+            "should contain 3 records");
+
+        // filter on bar
+        dialog.$('.o_filters_menu a:contains(Bar)').click();
+
+        assert.strictEqual(dialog.$('.o_data_row').length, 2,
+            "should contain 2 records");
+
+        // save filter
+        dialog.$('.o_save_search a').click(); // toggle 'Save current search'
+        dialog.$('.o_save_name input[type=text]').val('some name'); // name the filter
+        dialog.$('.o_save_name button').click(); // click on 'Save'
+
+        testUtils.unpatch(ListController);
+        parent.destroy();
+    });
+
+    QUnit.test('propagate can_create onto the search popup o2m', function (assert) {
+        assert.expect(3);
+
+        this.data.instrument.records = [
+            {id: 1, name: 'Tromblon1'},
+            {id: 2, name: 'Tromblon2'},
+            {id: 3, name: 'Tromblon3'},
+            {id: 4, name: 'Tromblon4'},
+            {id: 5, name: 'Tromblon5'},
+            {id: 6, name: 'Tromblon6'},
+            {id: 7, name: 'Tromblon7'},
+            {id: 8, name: 'Tromblon8'},
+        ];
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form>' +
+                     '<field name="name"/>' +
+                     '<field name="instrument" can_create="false"/>' +
+                  '</form>',
+            res_id: 1,
+            archs: {
+                'instrument,false,list': '<tree>'+
+                                                '<field name="name"/>'+
+                                            '</tree>',
+                'instrument,false,search': '<search>'+
+                                                '<field name="name"/>'+
+                                            '</search>',
+            },
+            viewOptions: {
+                mode: 'edit',
+            },
+
+            mockRPC: function(route, args) {
+                if (args.method === 'get_formview_id') {
+                    return $.when(false);
+                }
+                return this._super(route, args);
+            },
+        });
+
+        form.$('.o_field_widget[name="instrument"] .o_input').click();
+
+        assert.notOk($('.ui-autocomplete a:contains(Create and Edit)').length,
+            'Create and edit not present in dropdown');
+
+        $('.ui-autocomplete a:contains(Search More)').trigger('mouseenter').trigger('click');
+
+        var $modal = $('.modal-dialog.modal-lg');
+
+        assert.strictEqual($modal.length, 1, 'Modal present');
+
+        assert.strictEqual($modal.find('.modal-footer button').text(), "Cancel",
+            'Only the cancel button is present in modal');
+
+        form.destroy();
+    });
 });
 
 });

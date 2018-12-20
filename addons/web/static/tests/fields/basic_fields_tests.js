@@ -3,15 +3,19 @@ odoo.define('web.basic_fields_tests', function (require) {
 
 var basicFields = require('web.basic_fields');
 var concurrency = require('web.concurrency');
+var config = require('web.config');
 var core = require('web.core');
 var FormView = require('web.FormView');
 var KanbanView = require('web.KanbanView');
 var ListView = require('web.ListView');
 var session = require('web.session');
 var testUtils = require('web.test_utils');
+var field_registry = require('web.field_registry');
 
 var createView = testUtils.createView;
+var createAsyncView = testUtils.createAsyncView;
 var DebouncedField = basicFields.DebouncedField;
+var JournalDashboardGraph = basicFields.JournalDashboardGraph;
 var _t = core._t;
 
 QUnit.module('fields', {}, function () {
@@ -24,7 +28,7 @@ QUnit.module('basic_fields', {
                     date: {string: "A date", type: "date", searchable: true},
                     datetime: {string: "A datetime", type: "datetime", searchable: true},
                     display_name: {string: "Displayed name", type: "char", searchable: true},
-                    foo: {string: "Foo", type: "char", default: "My little Foo Value", searchable: true},
+                    foo: {string: "Foo", type: "char", default: "My little Foo Value", searchable: true, trim: true},
                     bar: {string: "Bar", type: "boolean", default: true, searchable: true},
                     txt: {string: "txt", type: "text", default: "My little txt Value\nHo-ho-hoooo Merry Christmas"},
                     int_field: {string: "int_field", type: "integer", sortable: true, searchable: true},
@@ -38,8 +42,6 @@ QUnit.module('basic_fields', {
                     selection: {string: "Selection", type: "selection", searchable:true,
                         selection: [['normal', 'Normal'],['blocked', 'Blocked'],['done', 'Done']]},
                     document: {string: "Binary", type: "binary"},
-                    image_selection: {string: "Image Selection", type: "selection", searchable:true,
-                        selection: [['background', 'Background'],['boxed', 'Boxed'],['clean', 'Clean'],['standard', 'Standard']]},
                 },
                 records: [{
                     id: 1,
@@ -231,12 +233,12 @@ QUnit.module('basic_fields', {
             "checkbox should now be unchecked");
 
         // check the checkbox by clicking on label
-        form.$('label').click();
+        form.$('label:first').click();
         assert.strictEqual(form.$('.o_field_boolean input:checked').length, 1,
             "checkbox should now be checked");
 
         // uncheck it back
-        form.$('label').click();
+        form.$('label:first').click();
         assert.strictEqual(form.$('.o_field_boolean input:checked').length, 0,
             "checkbox should now be unchecked");
 
@@ -271,52 +273,52 @@ QUnit.module('basic_fields', {
             arch: '<tree editable="bottom"><field name="bar"/></tree>',
         });
 
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input').length, 5,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input').length, 5,
             "should have 5 checkboxes");
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input:checked').length, 4,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input:checked').length, 4,
             "should have 4 checked input");
 
         // Edit a line
-        var $cell = list.$('tr.o_data_row:has(.o_checkbox input:checked) td:not(.o_list_record_selector)').first();
-        assert.ok($cell.find('.o_checkbox input:checked').prop('disabled'),
+        var $cell = list.$('tr.o_data_row:has(.custom-checkbox input:checked) td:not(.o_list_record_selector)').first();
+        assert.ok($cell.find('.custom-checkbox input:checked').prop('disabled'),
             "input should be disabled in readonly mode");
         $cell.click();
-        assert.ok(!$cell.find('.o_checkbox input:checked').prop('disabled'),
+        assert.ok(!$cell.find('.custom-checkbox input:checked').prop('disabled'),
             "input should not have the disabled property in edit mode");
-        $cell.find('.o_checkbox input:checked').click();
+        $cell.find('.custom-checkbox input:checked').click();
 
         // save
         list.$buttons.find('.o_list_button_save').click();
-        $cell = list.$('tr.o_data_row:has(.o_checkbox input:not(:checked)) td:not(.o_list_record_selector)').first();
-        assert.ok($cell.find('.o_checkbox input:not(:checked)').prop('disabled'),
+        $cell = list.$('tr.o_data_row:has(.custom-checkbox input:not(:checked)) td:not(.o_list_record_selector)').first();
+        assert.ok($cell.find('.custom-checkbox input:not(:checked)').prop('disabled'),
             "input should be disabled again");
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input').length, 5,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input').length, 5,
             "should still have 5 checkboxes");
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input:checked').length, 3,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input:checked').length, 3,
             "should now have only 3 checked input");
 
         // Re-Edit the line and fake-check the checkbox
         $cell.click();
-        $cell.find('.o_checkbox input').click(); // Change the checkbox
-        $cell.find('.o_checkbox input').click(); // Undo the change
+        $cell.find('.custom-checkbox input').click(); // Change the checkbox
+        $cell.find('.custom-checkbox input').click(); // Undo the change
 
         // Save
         list.$buttons.find('.o_list_button_save').click();
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input').length, 5,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input').length, 5,
             "should still have 5 checkboxes");
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input:checked').length, 3,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input:checked').length, 3,
             "should still have only 3 checked input");
 
         // Re-Edit the line to check the checkbox back but this time click on
         // the checkbox directly in readonly mode !
-        $cell = list.$('tr.o_data_row:has(.o_checkbox input:not(:checked)) td:not(.o_list_record_selector)').first();
-        $cell.find('.o_checkbox span').click();
+        $cell = list.$('tr.o_data_row:has(.custom-checkbox input:not(:checked)) td:not(.o_list_record_selector)').first();
+        $cell.find('.custom-checkbox .custom-control-label').click();
 
         // save
         list.$buttons.find('.o_form_button_save').click();
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input').length, 5,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input').length, 5,
             "should still have 5 checkboxes");
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .o_checkbox input:checked').length, 4,
+        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector) .custom-checkbox input:checked').length, 4,
             "should now have 4 checked input back");
         list.destroy();
     });
@@ -358,7 +360,7 @@ QUnit.module('basic_fields', {
     QUnit.module('FieldBooleanToggle');
 
     QUnit.test('use boolean toggle widget in form view', function (assert) {
-        assert.expect(2);
+        assert.expect(1);
 
         var form = createView({
             View: FormView,
@@ -368,8 +370,7 @@ QUnit.module('basic_fields', {
             res_id: 2,
         });
 
-        assert.strictEqual(form.$(".o_checkbox.o_boolean_toggle").length, 1, "Boolean toggle widget applied to boolean field");
-        assert.strictEqual(form.$(".o_checkbox.o_boolean_toggle").find(".slider").length, 1, "Boolean toggle contains slider to toggle");
+        assert.strictEqual(form.$(".custom-checkbox.o_boolean_toggle").length, 1, "Boolean toggle widget applied to boolean field");
         form.destroy();
     });
 
@@ -707,6 +708,71 @@ QUnit.module('basic_fields', {
         form.destroy();
     });
 
+    QUnit.test('float field with type number option', function (assert) {
+        assert.expect(4);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                '<field name="qux" options="{\'type\': \'number\'}"/>' +
+            '</form>',
+            res_id: 4,
+            translateParameters: {
+                thousands_sep: ",",
+                grouping: [3, 0],
+            },
+        });
+
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.ok(form.$('.o_field_widget')[0].hasAttribute('type'),
+            'Float field with option type must have a type attribute.');
+        assert.strictEqual(form.$('.o_field_widget').attr('type'), 'number',
+            'Float field with option type must have a type attribute equals to "number".');
+        form.$('input').val('123456.7890').trigger('input');
+        form.$buttons.find('.o_form_button_save').click();
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('.o_field_widget').val(), '123456.789',
+            'Float value must be not formatted if input type is number.');
+        form.$buttons.find('.o_form_button_save').click();
+        assert.strictEqual(form.$('.o_field_widget').text(), '123,456.8',
+            'Float value must be formatted in readonly view even if the input type is number.');
+
+        form.destroy();
+    });
+
+    QUnit.test('float field without type number option', function (assert) {
+        assert.expect(2);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                '<field name="qux"/>' +
+            '</form>',
+            res_id: 4,
+            translateParameters: {
+                thousands_sep: ",",
+                grouping: [3, 0],
+            },
+        });
+
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('.o_field_widget').attr('type'), 'text',
+            'Float field with option type must have a text type (default type).');
+
+        form.$('input').val('123456.7890').trigger('input');
+        form.$buttons.find('.o_form_button_save').click();
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('.o_field_widget').val(), '123,456.8',
+            'Float value must be formatted if input type isn\'t number.');
+
+        form.destroy();
+    });
+
+
     QUnit.module('FieldEmail');
 
     QUnit.test('email field in form view', function (assert) {
@@ -1028,6 +1094,43 @@ QUnit.module('basic_fields', {
         form.destroy();
     });
 
+    QUnit.test('char field trim (or not) characters', function (assert) {
+        assert.expect(2);
+
+        this.data.partner.fields.foo2 = {string: "Foo2", type: "char", trim: false};
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                    '<sheet>' +
+                        '<group>' +
+                            '<field name="foo"/>' +
+                            '<field name="foo2"/>' +
+                        '</group>' +
+                    '</sheet>' +
+                '</form>',
+            res_id: 1,
+            viewOptions: {
+                mode: 'edit',
+            },
+        });
+
+        form.$('input[name="foo"]').val('  abc  ').trigger('input');
+        form.$('input[name="foo2"]').val('  def  ').trigger('input');
+
+        form.$buttons.find('.o_form_button_save').click();
+
+        // edit mode
+        form.$buttons.find('.o_form_button_edit').click();
+
+        assert.strictEqual(form.$('input[name="foo"]').val(), 'abc', 'Foo value should have been trimmed');
+        assert.strictEqual(form.$('input[name="foo2"]').val(), '  def  ', 'Foo2 value should not have been trimmed');
+
+        form.destroy();
+    });
+
     QUnit.test('input field: change value before pending onchange returns', function (assert) {
         assert.expect(3);
 
@@ -1144,6 +1247,62 @@ QUnit.module('basic_fields', {
         form.destroy();
     });
 
+    QUnit.test('input field: change password value', function (assert) {
+        assert.expect(4);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form>' +
+                    '<field name="foo" password="True"/>' +
+                '</form>',
+            res_id: 1,
+        });
+
+        assert.notEqual(form.$('.o_field_char').text(), "yop",
+            "password field value should not be visible in read mode");
+        assert.strictEqual(form.$('.o_field_char').text(), "***",
+            "password field value should be hidden with '*' in read mode");
+
+        form.$buttons.find('.o_form_button_edit').click();
+
+        assert.strictEqual(form.$('input.o_field_char').attr('type'), 'password',
+            "password field input should be with type 'password' in edit mode");
+        assert.strictEqual(form.$('input.o_field_char').val(), 'yop',
+            "password field input value should be the (non-hidden) password value");
+
+        form.destroy();
+    });
+
+    QUnit.test('input field: empty password', function (assert) {
+        assert.expect(3);
+
+        this.data.partner.records[0].foo = false;
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form>' +
+                    '<field name="foo" password="True"/>' +
+                '</form>',
+            res_id: 1,
+        });
+
+        assert.strictEqual(form.$('.o_field_char').text(), "",
+            "password field value should be empty in read mode");
+
+        form.$buttons.find('.o_form_button_edit').click();
+
+        assert.strictEqual(form.$('input.o_field_char').attr('type'), 'password',
+            "password field input should be with type 'password' in edit mode");
+        assert.strictEqual(form.$('input.o_field_char').val(), '',
+            "password field input value should be the (non-hidden, empty) password value");
+
+        form.destroy();
+    });
+
     QUnit.module('UrlWidget');
 
     QUnit.test('url widget in form view', function (assert) {
@@ -1253,6 +1412,46 @@ QUnit.module('basic_fields', {
         list.destroy();
     });
 
+    QUnit.module('copy_clipboard', {
+        beforeEach: function () {
+            this.data = {
+                partner: {
+                    fields: {
+                        script_external: {string: "Script External", type: "text"},
+                        web_page: {string: "Web page link", type: "char"}
+                    },
+                    records: [{
+                        id: 1,
+                        script_external:'Random Text',
+                        web_page: 'web page links'
+                    },],
+                },
+            };
+        }
+    });
+
+    QUnit.test('Char & Text Fields: Copy to clipboard button', function (assert) {
+        assert.expect(2);
+        var done = assert.async();
+        testUtils.createAsyncView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                    '<sheet>' +
+                            '<div>' +
+                                '<field name="script_external" widget="CopyClipboardText"/>' +
+                                '<field name="web_page" widget="CopyClipboardChar"/>' +
+                            '</div>' +
+                    '</sheet>' +
+                '</form>',
+        }).then(function (form) {
+            assert.strictEqual(form.$('.o_clipboard_button.o_btn_text_copy').length, 1,"Should have copy button on text type field");
+            assert.strictEqual(form.$('.o_clipboard_button.o_btn_char_copy').length, 1,"Should have copy button on char type field");
+            form.destroy();
+            done();
+        });
+    });
 
     QUnit.module('FieldText');
 
@@ -1320,6 +1519,97 @@ QUnit.module('basic_fields', {
         // the difference is to take small calculation errors into account
         assert.strictEqual($textarea.innerHeight(), $textarea[0].scrollHeight,
             "textarea should not have a scroll bar");
+        form.destroy();
+    });
+
+    QUnit.test('text fields in edit mode, no vertical resize', function (assert) {
+        assert.expect(1);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                    '<field name="txt"/>' +
+                '</form>',
+            res_id: 1,
+        });
+
+        form.$buttons.find('.o_form_button_edit').click();
+
+        var $textarea = form.$('textarea:first');
+
+        assert.strictEqual($textarea.css('resize'), 'none',
+            "should not have vertical resize");
+
+        form.destroy();
+    });
+
+    QUnit.test('text fields in editable list have correct height', function (assert) {
+        assert.expect(2);
+
+        this.data.partner.records[0].txt = "a\nb\nc\nd\ne\nf";
+
+        var list = createView({
+            View: ListView,
+            model: 'partner',
+            data: this.data,
+            arch: '<list editable="top">' +
+                    '<field name="foo"/>' +
+                    '<field name="txt"/>' +
+                '</list>',
+        });
+
+        // Click to enter edit: in this test we specifically do not set
+        // the focus on the textarea by clicking on another column.
+        // The main goal is to test the resize is actually triggered in this
+        // particular case.
+        list.$('.o_data_cell:first').click();
+        var $textarea = list.$('textarea:first');
+
+        // make sure the correct data is there
+        assert.strictEqual($textarea.val(), this.data.partner.records[0].txt);
+
+        // make sure there is no scroll bar
+        assert.strictEqual($textarea.innerHeight(), $textarea[0].scrollHeight,
+            "textarea should not have a scroll bar");
+
+        list.destroy();
+    });
+
+    QUnit.test('text fields in edit mode should resize on reset', function (assert) {
+        assert.expect(1);
+
+        this.data.partner.fields.foo.type = 'text';
+
+        this.data.partner.onchanges = {
+            bar: function (obj) {
+                obj.foo = 'a\nb\nc\nd\ne\nf';
+            },
+        };
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                    '<field name="bar"/>' +
+                    '<field name="foo"/>' +
+                '</form>',
+            res_id: 1,
+        });
+
+        // edit the form
+        // trigger a textarea reset (through onchange) by clicking the box
+        // then check there is no scroll bar
+        form.$buttons.find('.o_form_button_edit').click();
+
+        form.$('div[name="bar"] input').click();
+
+        var $textarea = form.$('textarea:first');
+        assert.strictEqual($textarea.innerHeight(), $textarea[0].scrollHeight,
+            "textarea should not have a scroll bar");
+
         form.destroy();
     });
 
@@ -1557,6 +1847,107 @@ QUnit.module('basic_fields', {
         session.get_file = oldGetFile;
     });
 
+    QUnit.module('FieldPdfViewer');
+
+    QUnit.test("pdf_viewer without data", function (assert) {
+        assert.expect(4);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:
+                '<form>' +
+                    '<field name="document" widget="pdf_viewer"/>' +
+                '</form>',
+        });
+
+        assert.ok(form.$('.o_field_widget').hasClass('o_field_pdfviewer'));
+        assert.strictEqual(form.$('.o_select_file_button:not(.o_hidden)').length, 1,
+            "there should be a visible 'Upload' button");
+        assert.ok(form.$('.o_field_widget iframe.o_pdfview_iframe').hasClass('o_hidden'),
+            "there should be an invisible iframe");
+        assert.strictEqual(form.$('input[type="file"]').length, 1,
+            "there should be one input");
+
+        form.destroy();
+    });
+
+    QUnit.test("pdf_viewer: basic rendering", function (assert) {
+        assert.expect(4);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            res_id: 1,
+            arch:
+                '<form>' +
+                    '<field name="document" widget="pdf_viewer"/>' +
+                '</form>',
+            mockRPC: function (route) {
+                if (route.indexOf('/web/static/lib/pdfjs/web/viewer.html') !== -1) {
+                    return $.when();
+                }
+                return this._super.apply(this, arguments);
+            }
+        });
+
+        assert.ok(form.$('.o_field_widget').hasClass('o_field_pdfviewer'));
+        assert.strictEqual(form.$('.o_select_file_button:not(.o_hidden)').length, 0,
+            "there should not be a any visible 'Upload' button");
+        assert.notOk(form.$('.o_field_widget iframe.o_pdfview_iframe').hasClass('o_hidden'),
+            "there should be an visible iframe");
+        assert.strictEqual(form.$('.o_field_widget iframe.o_pdfview_iframe').attr('data-src'),
+            '/web/static/lib/pdfjs/web/viewer.html?file=%2Fweb%2Fimage%3Fmodel%3Dpartner%26field%3Ddocument%26id%3D1#page=1',
+            "the src attribute should be correctly set on the iframe");
+
+        form.destroy();
+    });
+
+    QUnit.test("pdf_viewer: upload rendering", function (assert) {
+        assert.expect(6);
+
+        testUtils.patch(field_registry.map.pdf_viewer, {
+            on_file_change: function (ev) {
+                ev.target = {files: [new Blob()]};
+                this._super.apply(this, arguments);
+            },
+            _getURI: function (fileURI) {
+                var res = this._super.apply(this, arguments);
+                assert.step('_getURI');
+                assert.ok(_.str.startsWith(fileURI, 'blob:'));
+                this.PDFViewerApplication = {
+                    open: function (URI) {
+                        assert.step('open');
+                        assert.ok(_.str.startsWith(URI, 'blob:'));
+                    },
+                };
+                return 'about:blank';
+            },
+        });
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:
+                '<form>' +
+                    '<field name="document" widget="pdf_viewer"/>' +
+                '</form>',
+        });
+
+        // first upload initialize iframe
+        form.$('input[type="file"]').trigger('change');
+        assert.verifySteps(['_getURI']);
+        // second upload call pdfjs method inside iframe
+        form.$('input[type="file"]').trigger('change');
+        assert.verifySteps(['_getURI', 'open']);
+
+        testUtils.unpatch(field_registry.map.pdf_viewer);
+        form.destroy();
+    });
+
     QUnit.test('text field rendering in list view', function (assert) {
         assert.expect(1);
 
@@ -1664,7 +2055,7 @@ QUnit.module('basic_fields', {
     QUnit.module('FieldImage');
 
     QUnit.test('image fields are correctly rendered', function (assert) {
-        assert.expect(6);
+        assert.expect(7);
 
         this.data.partner.records[0].__last_update = '2017-02-08 10:00:00';
         this.data.partner.records[0].document = 'myimage';
@@ -1693,15 +2084,17 @@ QUnit.module('basic_fields', {
             "the widget should have the correct class");
         assert.strictEqual(form.$('div[name="document"] > img').length, 1,
             "the widget should contain an image");
-        assert.ok(form.$('div[name="document"] > img').hasClass('img-responsive'),
+        assert.ok(form.$('div[name="document"] > img').hasClass('img-fluid'),
             "the image should have the correct class");
         assert.strictEqual(form.$('div[name="document"] > img').attr('width'), "90",
+            "the image should correctly set its attributes");
+        assert.strictEqual(form.$('div[name="document"] > img').css('max-width'), "90px",
             "the image should correctly set its attributes");
         form.destroy();
     });
 
     QUnit.test('image fields in subviews are loaded correctly', function (assert) {
-        assert.expect(5);
+        assert.expect(6);
 
         this.data.partner.records[0].__last_update = '2017-02-08 10:00:00';
         this.data.partner.records[0].document = 'myimage';
@@ -1730,6 +2123,10 @@ QUnit.module('basic_fields', {
                     assert.step("The view's image should have been fetched");
                     return $.when('wow');
                 }
+                if (route === 'data:image/png;base64,product_image') {
+                    assert.step("The dialog's image should have been fetched");
+                    return $.when();
+                }
                 return this._super.apply(this, arguments);
             },
         });
@@ -1740,11 +2137,46 @@ QUnit.module('basic_fields', {
 
         // Actual flow: click on an element of the m2m to get its form view
         form.$('tbody td:contains(gold)').click();
-        assert.strictEqual($('.modal-dialog').length, 1,
+        assert.strictEqual($('.modal').length, 1,
             'The modal should have opened');
-        assert.strictEqual($('.modal-dialog').find('.o_field_image > img')[0].src,
-            'data:image/png;base64,product_image',
-            'The image of the many2many in its form view should be present');
+        assert.verifySteps([
+            "The view's image should have been fetched",
+            "The dialog's image should have been fetched",
+        ]);
+
+        form.destroy();
+    });
+
+    QUnit.test('image fields in x2many list are loaded correctly', function (assert) {
+        assert.expect(2);
+
+        this.data.partner_type.fields.image = {name: 'image', type: 'binary'};
+        this.data.partner_type.records[0].image = 'product_image';
+        this.data.partner.records[0].timmy = [12];
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                    '<field name="timmy" widget="many2many">' +
+                        '<tree>' +
+                            '<field name="image" widget="image"/>' +
+                        '</tree>' +
+                    '</field>' +
+                '</form>',
+            res_id: 1,
+            mockRPC: function (route, args) {
+                if (route === 'data:image/png;base64,product_image') {
+                    assert.ok(true, "The list's image should have been fetched");
+                    return $.when();
+                }
+                return this._super.apply(this, arguments);
+            },
+        });
+
+        assert.strictEqual(form.$('tr.o_data_row').length, 1,
+            'There should be one record in the many2many');
 
         form.destroy();
     });
@@ -1811,12 +2243,24 @@ QUnit.module('basic_fields', {
         },
     });
 
-    QUnit.test('graph dashboard widget is rendered correctly', function (assert) {
+    QUnit.test('graph dashboard widget attach/detach callbacks', function (assert) {
+        // This widget is rendered with nvd3, and nvd3 renders the graphs when
+        // the svg is in the DOM. The intent of this test is to determine when
+        // the field widgets are in the DOM, so that we can tell nvd3 to render
+        // them.
         var done = assert.async();
-        assert.expect(4);
+        assert.expect(6);
 
-        var graph_key = JSON.parse(this.data.partner.records[0].graph_data)[0].key;
-        var kanban = createView({
+        testUtils.patch(JournalDashboardGraph, {
+            on_attach_callback: function () {
+                assert.step('on_attach_callback');
+            },
+            on_detach_callback: function () {
+                assert.step('on_detach_callback');
+            },
+        });
+
+        createAsyncView({
             View: KanbanView,
             model: 'partner',
             data: this.data,
@@ -1829,42 +2273,80 @@ QUnit.module('basic_fields', {
                     '</t>' +
                 '</templates></kanban>',
             domain: [['id', 'in', [1, 2]]],
-        });
+        }).then(function (kanban) {
+            assert.verifySteps([
+                'on_attach_callback',
+                'on_attach_callback'
+            ]);
 
-        // nvd3 seems to do a setTimeout(0) each time the addGraph function is
-        // called, which is done twice in this case as there are 2 records.
-        // for that reason, we need to do two setTimeout(0) as well here to ensure
-        // that both graphs are rendered before starting to check if the rendering
-        // is correct.
-        concurrency.delay(0).then(function () {
-            return concurrency.delay(0);
-        }).then(function () {
-            assert.strictEqual(kanban.$('.o_kanban_record:first() .o_graph_barchart').length, 1,
-                "graph of first record should be a barchart");
-            assert.strictEqual(kanban.$('.o_kanban_record:nth(1) .o_graph_linechart').length, 1,
-                "graph of second record should be a linechart");
+            kanban.on_detach_callback();
 
-            var evt = document.createEvent("MouseEvents"); //taken ref from https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/initMouseEvent
-            evt.initMouseEvent("mouseover", true, true, window, 0, 0, 0, 80, 20, false, false, false, false, 0, null);
-            $('.discreteBar')[0].dispatchEvent(evt);
-            var tooltip = $('.nvtooltip').find('table').find('.key')[0].innerText.trim();
-            assert.equal(tooltip, graph_key, "graph tooltip should be generated ");
-            $('.nvtooltip').remove();
-
-            // force a re-rendering of the first record (to check if the
-            // previous rendered graph is correctly removed from the DOM)
-            var firstRecordState = kanban.model.get(kanban.handle).data[0];
-            return kanban.renderer.updateRecord(firstRecordState);
-        }).then(function () {
-            return concurrency.delay(0); // one graph is re-rendered
-        }).then(function () {
-            assert.strictEqual(kanban.$('.o_kanban_record:first() svg').length, 1,
-                "there should be only one rendered graph by record");
+            assert.verifySteps([
+                'on_attach_callback',
+                'on_attach_callback',
+                'on_detach_callback',
+                'on_detach_callback'
+            ]);
 
             kanban.destroy();
+            testUtils.unpatch(JournalDashboardGraph);
             done();
         });
+    });
 
+    QUnit.test('graph dashboard widget is rendered correctly', function (assert) {
+        var done = assert.async();
+        assert.expect(4);
+
+        var graph_key = JSON.parse(this.data.partner.records[0].graph_data)[0].key;
+        createAsyncView({
+            View: KanbanView,
+            model: 'partner',
+            data: this.data,
+            arch: '<kanban class="o_kanban_test">' +
+                    '<field name="graph_type"/>' +
+                    '<templates><t t-name="kanban-box">' +
+                        '<div>' +
+                        '<field name="graph_data" t-att-graph_type="record.graph_type.raw_value" widget="dashboard_graph"/>' +
+                        '</div>' +
+                    '</t>' +
+                '</templates></kanban>',
+            domain: [['id', 'in', [1, 2]]],
+        }).then(function (kanban) {
+            // nvd3 seems to do a setTimeout(0) each time the addGraph function is
+            // called, which is done twice in this case as there are 2 records.
+            // for that reason, we need to do two setTimeout(0) as well here to ensure
+            // that both graphs are rendered before starting to check if the rendering
+            // is correct.
+            concurrency.delay(0).then(function () {
+                return concurrency.delay(0);
+            }).then(function () {
+                assert.strictEqual(kanban.$('.o_kanban_record:first() .o_graph_barchart svg').length, 1,
+                    "graph of first record should be a barchart");
+                assert.strictEqual(kanban.$('.o_kanban_record:nth(1) .o_graph_linechart svg').length, 1,
+                    "graph of second record should be a linechart");
+
+                var evt = document.createEvent("MouseEvents"); //taken ref from https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/initMouseEvent
+                evt.initMouseEvent("mouseover", true, true, window, 0, 0, 0, 80, 20, false, false, false, false, 0, null);
+                $('.discreteBar')[0].dispatchEvent(evt);
+                var tooltip = $('.nvtooltip').find('table').find('.key')[0].innerText.trim();
+                assert.equal(tooltip, graph_key, "graph tooltip should be generated ");
+                $('.nvtooltip').remove();
+
+                // force a re-rendering of the first record (to check if the
+                // previous rendered graph is correctly removed from the DOM)
+                var firstRecordState = kanban.model.get(kanban.handle).data[0];
+                return kanban.renderer.updateRecord(firstRecordState);
+            }).then(function () {
+                return concurrency.delay(0); // one graph is re-rendered
+            }).then(function () {
+                assert.strictEqual(kanban.$('.o_kanban_record:first() svg').length, 1,
+                    "there should be only one rendered graph by record");
+
+                kanban.destroy();
+                done();
+            });
+        });
     });
 
     QUnit.test('graph dashboard widget does not need nv to be destroyed', function (assert) {
@@ -1872,14 +2354,15 @@ QUnit.module('basic_fields', {
         // when being destroyed before nv has been loaded
         assert.expect(2);
 
-        var destroy = basicFields.JournalDashboardGraph.prototype.destroy;
-        basicFields.JournalDashboardGraph.prototype.destroy = function () {
-            assert.step('destroy');
-            var nv = window.nv;
-            delete window.nv;
-            destroy.apply(this, arguments);
-            window.nv = nv;
-        };
+        testUtils.patch(basicFields.JournalDashboardGraph, {
+            destroy: function () {
+                assert.step('destroy');
+                var nv = window.nv;
+                delete window.nv;
+                this._super.apply(this, arguments);
+                window.nv = nv;
+            }
+        });
 
         var kanban = createView({
             View: KanbanView,
@@ -1897,9 +2380,12 @@ QUnit.module('basic_fields', {
         });
 
         kanban.destroy();
-        basicFields.JournalDashboardGraph.prototype.destroy = destroy;
+        testUtils.unpatch(basicFields.JournalDashboardGraph);
 
         assert.verifySteps(['destroy']);
+
+        // Wait nvd3 to fully render the graph. If ommited, may slow down following tests.
+        return concurrency.delay(0);
     });
 
     QUnit.test('graph dashboard widget can be destroyed when nv is partially loaded', function (assert) {
@@ -1939,6 +2425,79 @@ QUnit.module('basic_fields', {
         testUtils.unpatch(basicFields.JournalDashboardGraph);
 
         assert.verifySteps(['destroy']);
+
+        // Wait nvd3 to fully render the graph. If ommited, may slow down following tests.
+        return concurrency.delay(0);
+    });
+
+    QUnit.test('rendering of a field with dashboard_graph widget in an updated kanban view (ungrouped)', function (assert) {
+
+        var done = assert.async();
+        assert.expect(2);
+
+        createAsyncView({
+            View: KanbanView,
+            model: 'partner',
+            data: this.data,
+            arch: '<kanban class="o_kanban_test">' +
+                    '<field name="graph_type"/>' +
+                    '<templates><t t-name="kanban-box">' +
+                        '<div>' +
+                        '<field name="graph_data" t-att-graph_type="record.graph_type.raw_value" widget="dashboard_graph"/>' +
+                        '</div>' +
+                    '</t>' +
+                '</templates></kanban>',
+            domain: [['id', 'in', [1, 2]]],
+        }).then(function (kanban) {
+            concurrency.delay(0).then(function () {
+                return concurrency.delay(0);
+            }).then(function () {
+                assert.strictEqual(kanban.$('.o_dashboard_graph svg').length, 2, "there should be two graph rendered");
+                return kanban.update({});
+            }).then(function () {
+                return concurrency.delay(0); // one graph is re-rendered
+            }).then(function () {
+                return concurrency.delay(0); // one graph is re-rendered
+            }).then(function () {
+                assert.strictEqual(kanban.$('.o_dashboard_graph svg').length, 2, "there should be one graph rendered");
+                kanban.destroy();
+                done();
+            });
+        });
+    });
+
+    QUnit.test('rendering of a field with dashboard_graph widget in an updated kanban view (grouped)', function (assert) {
+
+        var done = assert.async();
+        assert.expect(2);
+
+        createAsyncView({
+            View: KanbanView,
+            model: 'partner',
+            data: this.data,
+            arch: '<kanban class="o_kanban_test">' +
+                    '<field name="graph_type"/>' +
+                    '<templates><t t-name="kanban-box">' +
+                        '<div>' +
+                        '<field name="graph_data" t-att-graph_type="record.graph_type.raw_value" widget="dashboard_graph"/>' +
+                        '</div>' +
+                    '</t>' +
+                '</templates></kanban>',
+            domain: [['id', 'in', [1, 2]]],
+        }).then(function (kanban) {
+            concurrency.delay(0).then(function () {
+                return concurrency.delay(0);
+            }).then(function () {
+                assert.strictEqual(kanban.$('.o_dashboard_graph svg').length, 2, "there should be two graph rendered");
+                return kanban.update({groupBy: ['selection'], domain: [['int_field', '=', 10]]});
+            }).then(function () {
+                return concurrency.delay(0);
+            }).then(function () {
+                assert.strictEqual(kanban.$('.o_dashboard_graph svg').length, 1, "there should be one graph rendered");
+                kanban.destroy();
+                done();
+            });
+        });
     });
 
     QUnit.module('AceEditor');
@@ -2028,6 +2587,36 @@ QUnit.module('basic_fields', {
 
     QUnit.module('FieldDate');
 
+    QUnit.test('date field: toggle datepicker', function (assert) {
+        assert.expect(3);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:'<form><field name="foo"/><field name="date"/></form>',
+            translateParameters: {  // Avoid issues due to localization formats
+                date_format: '%m/%d/%Y',
+            },
+        });
+
+        assert.strictEqual($('.bootstrap-datetimepicker-widget:visible').length, 0,
+            "datepicker should be closed initially");
+
+        testUtils.openDatepicker(form.$('.o_datepicker'));
+
+        assert.strictEqual($('.bootstrap-datetimepicker-widget:visible').length, 1,
+            "datepicker should be opened");
+
+        // focus another field
+        form.$('.o_field_widget[name=foo]').click().focus();
+
+        assert.strictEqual($('.bootstrap-datetimepicker-widget:visible').length, 0,
+            "datepicker should close itself when the user clicks outside");
+
+        form.destroy();
+    });
+
     QUnit.test('date field is empty if no date is set', function (assert) {
         assert.expect(2);
 
@@ -2045,7 +2634,7 @@ QUnit.module('basic_fields', {
     });
 
     QUnit.test('date field value should not set on first click', function (assert) {
-        assert.expect(3);
+        assert.expect(2);
 
         var form = createView({
             View: FormView,
@@ -2054,12 +2643,19 @@ QUnit.module('basic_fields', {
             arch:'<form string="Partners"><field name="date"/></form>',
             res_id: 4,
         });
+
         form.$buttons.find('.o_form_button_edit').click();
-        assert.strictEqual($('.bootstrap-datetimepicker-widget').length, 1, "there should be a datepicker (autofocus)");
+
+        // open datepicker and select a date
+        testUtils.openDatepicker(form.$('.o_datepicker'));
         assert.strictEqual(form.$('.o_datepicker_input').val(), '', "date field's input should be empty on first click");
         $('.day:contains(22)').click();
-        form.$('.o_datepicker_input').focus(); // Open Datepicker second time
-        assert.strictEqual($('.day.active').text(), '22', 'datepicker should be highlight with 22nd day of month');
+
+        // re-open datepicker
+        testUtils.openDatepicker(form.$('.o_datepicker'));
+        assert.strictEqual($('.day.active').text(), '22',
+            "datepicker should be highlight with 22nd day of month");
+
         form.destroy();
     });
 
@@ -2096,7 +2692,8 @@ QUnit.module('basic_fields', {
         assert.strictEqual(form.$('.o_datepicker_input').val(), '02/03/2017',
             'the date should be correct in edit mode');
 
-        // select another value
+        // open datepicker and select another value
+        testUtils.openDatepicker(form.$('.o_datepicker'));
         assert.ok($('.bootstrap-datetimepicker-widget').length, 'datepicker should be open');
         assert.strictEqual($('.day.active').data('day'), '02/03/2017', 'datepicker should be highlight February 3');
         $('.bootstrap-datetimepicker-widget .picker-switch').first().click();  // Month selection
@@ -2145,6 +2742,76 @@ QUnit.module('basic_fields', {
         form.destroy();
     });
 
+    QUnit.test('date field with warn_future option', function (assert) {
+        assert.expect(2);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:'<form string="Partners">' +
+                    '<field name="date" options="{\'datepicker\': {\'warn_future\': true}}"/>' +
+                 '</form>',
+            res_id: 4,
+        });
+
+        // switch to edit mode
+        form.$buttons.find('.o_form_button_edit').click();
+        // open datepicker and select another value
+        testUtils.openDatepicker(form.$('.o_datepicker'));
+        $('.bootstrap-datetimepicker-widget .picker-switch').first().click();  // Month selection
+        $('.bootstrap-datetimepicker-widget .picker-switch').first().click();  // Year selection
+        $('.bootstrap-datetimepicker-widget .year').eq(11).click();  // last year
+        $('.bootstrap-datetimepicker-widget .month').eq(11).click();  // December
+        $('.day:contains(31)').click(); // select the 31 December
+
+        var $warn = form.$('.o_datepicker_warning:visible');
+        assert.strictEqual($warn.length, 1, "should have a warning in the form view");
+
+        form.$('.o_field_widget[name=date] input').val('').trigger('change');  // remove the value
+
+        $warn = form.$('.o_datepicker_warning:visible');
+        assert.strictEqual($warn.length, 0, "the warning in the form view should be hidden");
+
+        form.destroy();
+    });
+
+    QUnit.test('date field with warn_future option: do not overwrite datepicker option', function (assert) {
+        assert.expect(2);
+
+        // Making sure we don't have a legit default value
+        // or any onchange that would set the value
+        this.data.partner.fields.date.default = undefined;
+        this.data.partner.onchanges = {};
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:'<form string="Partners">' +
+                    '<field name="foo" />' + // Do not let the date field get the focus in the first place
+                    '<field name="date" options="{\'datepicker\': {\'warn_future\': true}}"/>' +
+                 '</form>',
+            res_id: 1,
+        });
+
+        // switch to edit mode
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('input[name="date"]').val(), '02/03/2017',
+            'The existing record should have a value for the date field');
+
+        // save with no changes
+        form.$buttons.find('.o_form_button_save').click();
+
+        //Create a new record
+        form.$buttons.find('.o_form_button_create').click();
+
+        assert.notOk(form.$('input[name="date"]').val(),
+            'The new record should not have a value that the framework would have set');
+
+        form.destroy();
+    });
+
     QUnit.test('date field in editable list view', function (assert) {
         assert.expect(8);
 
@@ -2179,7 +2846,8 @@ QUnit.module('basic_fields', {
         assert.strictEqual(list.$('input.o_datepicker_input').val(), '02/03/2017',
             'the date should be correct in edit mode');
 
-        // select another value
+        // open datepicker and select another value
+        testUtils.openDatepicker(list.$('.o_datepicker'));
         assert.ok($('.bootstrap-datetimepicker-widget').length, 'datepicker should be open');
         $('.bootstrap-datetimepicker-widget .picker-switch').first().click();  // Month selection
         $('.bootstrap-datetimepicker-widget .picker-switch').first().click();  // Year selection
@@ -2223,13 +2891,15 @@ QUnit.module('basic_fields', {
         assert.strictEqual(form.$('.o_datepicker_input').val(), '02/03/2017',
             'the date should be correct in edit mode');
 
-        $('.o_datepicker_input').val('').trigger('input').trigger('change');
-        assert.ok(!form.$('.o_datepicker_input').val());
+        form.$('.o_datepicker_input').val('').trigger('input').trigger('change').trigger('focusout');
+        assert.strictEqual(form.$('.o_datepicker_input').val(), '',
+            'should have correctly removed the value');
 
         // save
         form.$buttons.find('.o_form_button_save').click();
         assert.strictEqual(form.$('.o_field_date').text(), '',
             'the selected date should be displayed after saving');
+
         form.destroy();
     });
 
@@ -2258,10 +2928,43 @@ QUnit.module('basic_fields', {
         assert.strictEqual(form.$('.o_datepicker_input').val(), '02/08/2017',
             'the date should be correct');
 
-        form.$('input[name="datetime"]').val('02/08/2017').trigger('input').trigger('change');
+        form.$('input[name="datetime"]').val('02/08/2017')
+                                        .trigger('input').trigger('change').trigger('focusout');
         form.$buttons.find('.o_form_button_save').click();
 
         assert.verifySteps(['read']); // should not have save as nothing changed
+
+        form.destroy();
+    });
+
+    QUnit.test('field date should select its content onclick when there is one', function (assert) {
+        assert.expect(2);
+        var done = assert.async();
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:'<form string="Partners">' +
+                    '<field name="display_name" /> ' + // Do not focus on the date field right away
+                    '<field name="date" />' +
+                '</form>',
+            res_id: 1,
+            viewOptions: {
+                mode: 'edit',
+            },
+        });
+
+        form.$el.on({
+            'show.datetimepicker': function () {
+                assert.ok($('.bootstrap-datetimepicker-widget').is(':visible'),
+                    'bootstrap-datetimepicker is visible');
+                assert.strictEqual(window.getSelection().toString(), "02/03/2017",
+                    'The whole input of the date field should have been selected');
+                done();
+            }
+        });
+        form.$('.o_input[name="date"]').mouseenter().trigger('focus');
 
         form.destroy();
     });
@@ -2325,8 +3028,33 @@ QUnit.module('basic_fields', {
         form.destroy();
     });
 
-    QUnit.test('datetime field in form view', function (assert) {
+
+    QUnit.test('datetime field not visible in form view should not capture the focus on keyboard navigation', function (assert) {
         assert.expect(1);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch:'<form string="Partners"><field name="txt"/>' +
+            '<field name="datetime" invisible="True"/></form>',
+            res_id: 1,
+            viewOptions: {
+                mode: 'edit',
+            },
+        });
+
+        form.$el.find('textarea[name=txt]').trigger($.Event('keydown', {
+            which: $.ui.keyCode.TAB,
+            keyCode: $.ui.keyCode.TAB,
+        }));
+        assert.strictEqual(document.activeElement, form.$buttons.find('.o_form_button_save')[0],
+            "the save button should be selected, because the datepicker did not capture the focus");
+        form.destroy();
+    });
+
+    QUnit.test('datetime field with datetime formatted without second', function (assert) {
+        assert.expect(2);
 
         this.data.partner.fields.datetime.default = "2017-08-02 12:00:05";
         this.data.partner.fields.datetime.required = true;
@@ -2336,24 +3064,21 @@ QUnit.module('basic_fields', {
             model: 'partner',
             data: this.data,
             arch:'<form string="Partners"><field name="datetime"/></form>',
-            res_id: 1,
             translateParameters: {  // Avoid issues due to localization formats
                 date_format: '%m/%d/%Y',
                 time_format: '%H:%M',
             },
         });
-        testUtils.patch(basicFields.FieldDate, {
-            _setValue: function () {
-                throw "The time format of the language must be taken into account."
-                return this._super.apply(this, arguments);
-            },
-        });
-        form.$buttons.find('.o_form_button_create').click();
+
         var expectedDateString = "08/02/2017 12:00"; // 10:00:00 without timezone
         assert.strictEqual(form.$('.o_field_date input').val(), expectedDateString,
             'the datetime should be correctly displayed in readonly');
 
-        testUtils.unpatch(basicFields.FieldDate);
+        form.$buttons.find('.o_form_button_cancel').click();
+
+        assert.strictEqual($('.modal').length, 0,
+            "there should not be a Warning dialog");
+
         form.destroy();
     });
 
@@ -2454,13 +3179,15 @@ QUnit.module('basic_fields', {
         assert.strictEqual(form.$('.o_datepicker_input').val(), '02/08/2017 12:00:00',
             'the date time should be correct in edit mode');
 
-        $('.o_datepicker_input').val('').trigger('input').trigger('change');
-        assert.ok(!form.$('.o_datepicker_input').val());
+        $('.o_datepicker_input').val('').trigger('input').trigger('change').trigger('focusout');
+        assert.strictEqual(form.$('.o_datepicker_input').val(), '',
+            "should have an empty input");
 
         // save
         form.$buttons.find('.o_form_button_save').click();
         assert.strictEqual(form.$('.o_field_date').text(), '',
             'the selected date should be displayed after saving');
+
         form.destroy();
     });
 
@@ -3082,6 +3809,71 @@ QUnit.module('basic_fields', {
         list.destroy();
     });
 
+    QUnit.test('integer field with type number option', function (assert) {
+        assert.expect(4);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                '<field name="int_field" options="{\'type\': \'number\'}"/>' +
+            '</form>',
+            res_id: 4,
+            translateParameters: {
+                thousands_sep: ",",
+                grouping: [3, 0],
+            },
+        });
+
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.ok(form.$('.o_field_widget')[0].hasAttribute('type'),
+            'Integer field with option type must have a type attribute.');
+        assert.strictEqual(form.$('.o_field_widget').attr('type'), 'number',
+            'Integer field with option type must have a type attribute equals to "number".');
+
+        form.$('input').val('1234567890').trigger('input');
+        form.$buttons.find('.o_form_button_save').click();
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('.o_field_widget').val(), '1234567890',
+            'Integer value must be not formatted if input type is number.');
+        form.$buttons.find('.o_form_button_save').click();
+        assert.strictEqual(form.$('.o_field_widget').text(), '1,234,567,890',
+            'Integer value must be formatted in readonly view even if the input type is number.');
+
+        form.destroy();
+    });
+
+    QUnit.test('integer field without type number option', function (assert) {
+        assert.expect(2);
+
+        var form = createView({
+            View: FormView,
+            model: 'partner',
+            data: this.data,
+            arch: '<form string="Partners">' +
+                '<field name="int_field"/>' +
+            '</form>',
+            res_id: 4,
+            translateParameters: {
+                thousands_sep: ",",
+                grouping: [3, 0],
+            },
+        });
+
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('.o_field_widget').attr('type'), 'text',
+            'Integer field without option type must have a text type (default type).');
+
+        form.$('input').val('1234567890').trigger('input');
+        form.$buttons.find('.o_form_button_save').click();
+        form.$buttons.find('.o_form_button_edit').click();
+        assert.strictEqual(form.$('.o_field_widget').val(), '1,234,567,890',
+            'Integer value must be formatted if input type isn\'t number.');
+
+        form.destroy();
+    });
+
 
     QUnit.module('FieldFloatTime');
 
@@ -3127,10 +3919,10 @@ QUnit.module('basic_fields', {
     });
 
 
-    QUnit.module('PhoneWidget');
+    QUnit.module('FieldFloatFactor');
 
-    QUnit.test('phone field in form view on extra small screens', function (assert) {
-        assert.expect(8);
+    QUnit.test('float_factor field in form view', function (assert) {
+        assert.expect(4);
 
         var form = createView({
             View: FormView,
@@ -3138,117 +3930,82 @@ QUnit.module('basic_fields', {
             data: this.data,
             arch:'<form string="Partners">' +
                     '<sheet>' +
-                        '<group>' +
-                            '<field name="foo" widget="phone"/>' +
-                        '</group>' +
+                        '<field name="qux" widget="float_factor" options="{\'factor\': 0.5}" digits="[16,2]"/>' +
                     '</sheet>' +
                 '</form>',
-            res_id: 1,
-            config: {
-                device: {
-                    size_class: 0, // Screen XS
-                    SIZES: { XS: 0, SM: 1, MD: 2, LG: 3 },
+            mockRPC: function (route, args) {
+                if (route === '/web/dataset/call_kw/partner/write') {
+                    // 16.4 / 2 = 8.2
+                    assert.strictEqual(args.args[1].qux, 4.6, 'the correct float value should be saved');
                 }
+                return this._super.apply(this, arguments);
             },
+            res_id: 5,
         });
+        assert.strictEqual(form.$('.o_field_widget').first().text(), '4.55', // 9.1 / 0.5
+            'The formatted value should be displayed properly.');
 
-        var $phoneLink = form.$('a.o_form_uri.o_field_widget');
-        assert.strictEqual($phoneLink.length, 1,
-            "should have a anchor with correct classes");
-        assert.strictEqual($phoneLink.text(), 'y\u00ADop',
-            "value should be displayed properly as text with the skype obfuscation");
-        assert.strictEqual($phoneLink.attr('href'), 'tel:yop',
-            "should have proper tel prefix");
-
-        // switch to edit mode and check the result
         form.$buttons.find('.o_form_button_edit').click();
-        assert.strictEqual(form.$('input[type="text"].o_field_widget').length, 1,
-            "should have an input for the phone field");
-        assert.strictEqual(form.$('input[type="text"].o_field_widget').val(), 'yop',
-            "input should contain field value in edit mode");
+        assert.strictEqual(form.$('input').val(), '4.55',
+            'The value should be rendered correctly in the input.');
 
-        // change value in edit mode
-        form.$('input[type="text"].o_field_widget').val('new').trigger('input');
+        form.$('input').val('2.3').trigger('input');
 
-        // save
         form.$buttons.find('.o_form_button_save').click();
-        $phoneLink = form.$('a.o_form_uri.o_field_widget');
-        assert.strictEqual($phoneLink.text(), 'n\u00ADew',
-            "new value should be displayed properly as text with the skype obfuscation");
-        assert.strictEqual($phoneLink.attr('href'), 'tel:new',
-            "should still have proper tel prefix");
-
-        // NOT NEEDED AS OF SAAS-11.3
-        // save phone with &shy; and verify it is removed
-        form.$buttons.find('.o_form_button_edit').click();
-        form.$('input[type="text"].o_field_widget').val('h\u00ADi').trigger('input');
-        form.$buttons.find('.o_form_button_save').click();
-        $phoneLink = form.$('a.o_form_uri.o_field_widget');
-        assert.strictEqual($phoneLink.attr('href'), 'tel:hi',
-            "U+00AD should have been removed");
+        assert.strictEqual(form.$('.o_field_widget').first().text(), '2.30',
+            'The new value should be saved and displayed properly.');
 
         form.destroy();
     });
 
-    QUnit.test('phone field in editable list view on extra small screens', function (assert) {
-        assert.expect(10);
+    QUnit.module('FieldFloatToggle');
 
-        var list = createView({
-            View: ListView,
+    QUnit.test('float_toggle field in form view', function (assert) {
+        assert.expect(5);
+
+        var form = createView({
+            View: FormView,
             model: 'partner',
             data: this.data,
-            arch: '<tree editable="bottom"><field name="foo"  widget="phone"/></tree>',
-            config: {
-                device: {
-                    size_class: 0, // Screen XS
-                    SIZES: { XS: 0, SM: 1, MD: 2, LG: 3 },
+            arch:'<form string="Partners">' +
+                    '<sheet>' +
+                        '<field name="qux" widget="float_toggle" options="{\'factor\': 0.125, \'range\': [0, 1, 0.75, 0.5, 0.25]}" digits="[5,3]"/>' +
+                    '</sheet>' +
+                '</form>',
+            mockRPC: function (route, args) {
+                if (route === '/web/dataset/call_kw/partner/write') {
+                    // 1.000 / 0.125 = 8
+                    assert.strictEqual(args.args[1].qux, 8, 'the correct float value should be saved');
                 }
+                return this._super.apply(this, arguments);
             },
+            res_id: 1,
         });
+        assert.strictEqual(form.$('.o_field_widget').first().text(), '0.056',
+            'The formatted time value should be displayed properly.');
 
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector)').length, 5,
-            "should have 5 cells");
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector)').first().text(), 'y\u00ADop',
-            "value should be displayed properly as text with the skype obfuscation");
+        form.$buttons.find('.o_form_button_edit').click();
 
-        var $phoneLink = list.$('a.o_form_uri.o_field_widget');
-        assert.strictEqual($phoneLink.length, 5,
-            "should have anchors with correct classes");
-        assert.strictEqual($phoneLink.first().attr('href'), 'tel:yop',
-            "should have proper tel prefix");
+        assert.strictEqual(form.$('button.o_field_float_toggle').text(), '0.056',
+            'The value should be rendered correctly on the button.');
 
-        // Edit a line and check the result
-        var $cell = list.$('tbody td:not(.o_list_record_selector)').first();
-        $cell.click();
-        assert.ok($cell.parent().hasClass('o_selected_row'), 'should be set as edit mode');
-        assert.strictEqual($cell.find('input').val(), 'yop',
-            'should have the corect value in internal input');
-        $cell.find('input').val('new').trigger('input');
+        form.$('button.o_field_float_toggle').click(); // clicking will make the next value 1, since 0 was the closest of 0.056
 
-        // save
-        list.$buttons.find('.o_list_button_save').click();
-        $cell = list.$('tbody td:not(.o_list_record_selector)').first();
-        assert.ok(!$cell.parent().hasClass('o_selected_row'), 'should not be in edit mode anymore');
-        assert.strictEqual(list.$('tbody td:not(.o_list_record_selector)').first().text(), 'n\u00ADew',
-            "value should be properly updated");
-        $phoneLink = list.$('a.o_form_uri.o_field_widget');
-        assert.strictEqual($phoneLink.length, 5,
-            "should still have anchors with correct classes");
-        assert.strictEqual($phoneLink.first().attr('href'), 'tel:new',
-            "should still have proper tel prefix");
+        assert.strictEqual(form.$('button.o_field_float_toggle').text(), '1.000',
+            'The value should be rendered correctly on the button.');
 
-        list.destroy();
+        form.$buttons.find('.o_form_button_save').click();
+
+        assert.strictEqual(form.$('.o_field_widget').first().text(), '1.000',
+            'The new value should be saved and displayed properly.');
+
+        form.destroy();
     });
 
-    QUnit.test('phone field in form view on normal screens', function (assert) {
-        // The behavior of this widget is completely altered by voip so this
-        // test is irrelevant and fails if voip is installed. The enterprise
-        // module is responsible for testing its own behavior in its own tests.
-        if ('voip.user_agent' in odoo.__DEBUG__.services) {
-            assert.expect(0);
-            return;
-        }
 
+    QUnit.module('PhoneWidget');
+
+    QUnit.test('phone field in form view on normal screens', function (assert) {
         assert.expect(5);
 
         var form = createView({
@@ -3265,17 +4022,16 @@ QUnit.module('basic_fields', {
             res_id: 1,
             config: {
                 device: {
-                    size_class: 1, // Screen SM
-                    SIZES: { XS: 0, SM: 1, MD: 2, LG: 3 },
-                }
+                    size_class: config.device.SIZES.LG,
+                },
             },
         });
 
-        var $phone = form.$('span.o_field_widget:not(.o_form_uri)');
+        var $phone = form.$('a.o_field_widget.o_form_uri');
         assert.strictEqual($phone.length, 1,
-            "should have a simple span rather than a link");
+            "should have rendered the phone number as a link with correct classes");
         assert.strictEqual($phone.text(), 'yop',
-            "value should be displayed properly as text without skype obfuscation");
+            "value should be displayed properly");
 
         // switch to edit mode and check the result
         form.$buttons.find('.o_form_button_edit').click();
@@ -3289,21 +4045,13 @@ QUnit.module('basic_fields', {
 
         // save
         form.$buttons.find('.o_form_button_save').click();
-        assert.strictEqual(form.$('span.o_field_widget:not(.o_form_uri)').text(), 'new',
-            "new value should be displayed properly as text without skype obfuscation");
+        assert.strictEqual(form.$('a.o_field_widget.o_form_uri').text(), 'new',
+            "new value should be displayed properly");
 
         form.destroy();
     });
 
     QUnit.test('phone field in editable list view on normal screens', function (assert) {
-        // The behavior of this widget is completely altered by voip so this
-        // test is irrelevant and fails if voip is installed. The enterprise
-        // module is responsible for testing its own behavior in its own tests.
-        if ('voip.user_agent' in odoo.__DEBUG__.services) {
-            assert.expect(0);
-            return;
-        }
-
         assert.expect(8);
 
         var list = createView({
@@ -3313,19 +4061,18 @@ QUnit.module('basic_fields', {
             arch: '<tree editable="bottom"><field name="foo"  widget="phone"/></tree>',
             config: {
                 device: {
-                    size_class: 1, // Screen SM
-                    SIZES: { XS: 0, SM: 1, MD: 2, LG: 3 },
-                }
+                    size_class: config.device.SIZES.LG,
+                },
             },
         });
 
         assert.strictEqual(list.$('tbody td:not(.o_list_record_selector)').length, 5,
             "should have 5 cells");
         assert.strictEqual(list.$('tbody td:not(.o_list_record_selector)').first().text(), 'yop',
-            "value should be displayed properly as text without skype obfuscation");
+            "value should be displayed properly");
 
-        assert.strictEqual(list.$('span.o_field_widget:not(.o_form_uri)').length, 5,
-            "should have spans with correct classes");
+        assert.strictEqual(list.$('a.o_field_widget.o_form_uri').length, 5,
+            "should have the correct classnames");
 
         // Edit a line and check the result
         var $cell = list.$('tbody td:not(.o_list_record_selector)').first();
@@ -3341,47 +4088,10 @@ QUnit.module('basic_fields', {
         assert.ok(!$cell.parent().hasClass('o_selected_row'), 'should not be in edit mode anymore');
         assert.strictEqual(list.$('tbody td:not(.o_list_record_selector)').first().text(), 'new',
             "value should be properly updated");
-        assert.strictEqual(list.$('span.o_field_widget:not(.o_form_uri)').length, 5,
-            "should still have spans with correct classes");
+        assert.strictEqual(list.$('a.o_field_widget.o_form_uri').length, 5,
+            "should still have links with correct classes");
 
         list.destroy();
-    });
-
-    QUnit.test('phone field does not allow html injections', function (assert) {
-        assert.expect(1);
-
-        var form = createView({
-            View: FormView,
-            model: 'partner',
-            data: this.data,
-            arch:'<form string="Partners">' +
-                    '<sheet>' +
-                        '<group>' +
-                            '<field name="foo" widget="phone"/>' +
-                        '</group>' +
-                    '</sheet>' +
-                '</form>',
-            res_id: 1,
-            viewOptions: {
-                mode: 'edit',
-            },
-            config: {
-                device: {
-                    size_class: 0,
-                    SIZES: { XS: 0, SM: 1, MD: 2, LG: 3 },
-                }
-            },
-        });
-
-        var val = '<script>throw Error();</script><script>throw Error();</script>';
-        form.$('input').val(val).trigger('input');
-
-        // save
-        form.$buttons.find('.o_form_button_save').click();
-        assert.strictEqual(form.$('.o_field_widget').text().split('\u00AD').join(''), val,
-            "value should have been correctly escaped");
-
-        form.destroy();
     });
 
     QUnit.test('use TAB to navigate to a phone field', function (assert) {
@@ -3640,25 +4350,28 @@ QUnit.module('basic_fields', {
                     '</sheet>' +
                 '</form>',
             res_id: 1,
+            viewOptions: {
+                disable_autofocus: true,
+            },
         });
 
         assert.strictEqual(form.$('.o_field_widget.o_selection > a span.o_status.o_status_red').length, 1,
             "should have one red status since selection is the second, blocked state");
         assert.strictEqual(form.$('.o_field_widget.o_selection > a span.o_status.o_status_green').length, 0,
             "should not have one green status since selection is the second, blocked state");
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown");
 
         // Click on the status button to make the dropdown appear
         form.$('.o_field_widget.o_selection .o_status').first().click();
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 1,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 1,
             "there should be a dropdown");
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible li').length, 2,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible .dropdown-item').length, 2,
             "there should be two options in the dropdown");
 
         // Click on the first option, "Normal"
-        form.$('ul.dropdown-menu.state:visible li').first().click();
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 0,
+        form.$('.dropdown-menu.state:visible .dropdown-item').first().click();
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown anymore");
         assert.strictEqual(form.$('.o_field_widget.o_selection > a span.o_status.o_status_red').length, 0,
             "should not have one red status since selection is the first, normal state");
@@ -3669,7 +4382,7 @@ QUnit.module('basic_fields', {
 
         // switch to edit mode and check the result
         form.$buttons.find('.o_form_button_edit').click();
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 0,
             "there should still not be a dropdown");
         assert.strictEqual(form.$('.o_field_widget.o_selection > a span.o_status.o_status_red').length, 0,
             "should still not have one red status since selection is the first, normal state");
@@ -3680,14 +4393,14 @@ QUnit.module('basic_fields', {
 
         // Click on the status button to make the dropdown appear
         form.$('.o_field_widget.o_selection .o_status').first().click();
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 1,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 1,
             "there should be a dropdown");
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible li').length, 2,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible .dropdown-item').length, 2,
             "there should be two options in the dropdown");
 
         // Click on the last option, "Done"
-        form.$('ul.dropdown-menu.state:visible li').last().click();
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 0,
+        form.$('.dropdown-menu.state:visible .dropdown-item').last().click();
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown anymore");
         assert.strictEqual(form.$('.o_field_widget.o_selection > a span.o_status.o_status_red').length, 0,
             "should not have one red status since selection is the third, done state");
@@ -3696,7 +4409,7 @@ QUnit.module('basic_fields', {
 
         // save
         form.$buttons.find('.o_form_button_save').click();
-        assert.strictEqual(form.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(form.$('.dropdown-menu.state:visible').length, 0,
             "there should still not be a dropdown anymore");
         assert.strictEqual(form.$('.o_field_widget.o_selection > a span.o_status.o_status_red').length, 0,
             "should still not have one red status since selection is the third, done state");
@@ -3725,7 +4438,7 @@ QUnit.module('basic_fields', {
             "should have one red status");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status.o_status_green').length, 1,
             "should have one green status");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown");
 
         // Click on the status button to make the dropdown appear
@@ -3733,20 +4446,20 @@ QUnit.module('basic_fields', {
         list.$('.o_state_selection_cell .o_selection > a span.o_status').first().click();
         assert.ok(!$cell.parent().hasClass('o_selected_row'),
             'should not be in edit mode since we clicked on the state selection widget');
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 1,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 1,
             "there should be a dropdown");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible li').length, 2,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible .dropdown-item').length, 2,
             "there should be two options in the dropdown");
 
         // Click on the first option, "Normal"
-        list.$('ul.dropdown-menu.state:visible li').first().click();
+        list.$('.dropdown-menu.state:visible .dropdown-item').first().click();
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status').length, 5,
             "should still have five status selection widgets");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status.o_status_red').length, 0,
             "should now have no red status");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status.o_status_green').length, 1,
             "should still have one green status");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown");
 
         // switch to edit mode and check the result
@@ -3760,21 +4473,21 @@ QUnit.module('basic_fields', {
             "should now have no red status");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status.o_status_green').length, 1,
             "should still have one green status");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown");
 
         // Click on the status button to make the dropdown appear
         list.$('.o_state_selection_cell .o_selection > a span.o_status').first().click();
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 1,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 1,
             "there should be a dropdown");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible li').length, 2,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible .dropdown-item').length, 2,
             "there should be two options in the dropdown");
 
         // Click on another row
         var $firstCell = list.$('tbody td.o_state_selection_cell').first();
         var $lastCell = list.$('tbody td.o_state_selection_cell').last();
         $lastCell.click();
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown anymore");
         assert.ok(!$firstCell.parent().hasClass('o_selected_row'),
             'first row should not be in edit mode anymore');
@@ -3783,14 +4496,14 @@ QUnit.module('basic_fields', {
 
         // Click on the last status button to make the dropdown appear
         list.$('.o_state_selection_cell .o_selection > a span.o_status').last().click();
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 1,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 1,
             "there should be a dropdown");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible li').length, 2,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible .dropdown-item').length, 2,
             "there should be two options in the dropdown");
 
         // Click on the last option, "Done"
-        list.$('ul.dropdown-menu.state:visible li').last().click();
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        list.$('.dropdown-menu.state:visible .dropdown-item').last().click();
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown anymore");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status').length, 5,
             "should still have five status selection widgets");
@@ -3798,7 +4511,7 @@ QUnit.module('basic_fields', {
             "should still have no red status");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status.o_status_green').length, 2,
             "should now have two green status");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown");
 
         // save
@@ -3809,7 +4522,7 @@ QUnit.module('basic_fields', {
             "should have no red status");
         assert.strictEqual(list.$('.o_state_selection_cell .o_selection > a span.o_status.o_status_green').length, 2,
             "should have two green status");
-        assert.strictEqual(list.$('ul.dropdown-menu.state:visible').length, 0,
+        assert.strictEqual(list.$('.dropdown-menu.state:visible').length, 0,
             "there should not be a dropdown");
 
         list.destroy();
@@ -3952,42 +4665,42 @@ QUnit.module('basic_fields', {
                     '<sheet>' +
                         '<group>' +
                             '<field name="selection" widget="label_selection" ' +
-                            ' options="{\'classes\': {\'normal\': \'default\', \'blocked\': \'warning\',\'done\': \'success\'}}"/>' +
+                            ' options="{\'classes\': {\'normal\': \'secondary\', \'blocked\': \'warning\',\'done\': \'success\'}}"/>' +
                         '</group>' +
                     '</sheet>' +
                 '</form>',
             res_id: 1,
         });
 
-        assert.strictEqual(form.$('.o_field_widget.label.label-warning').length, 1,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-warning').length, 1,
             "should have a warning status label since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-default').length, 0,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-secondary').length, 0,
             "should not have a default status since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-success').length, 0,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-success').length, 0,
             "should not have a success status since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-warning').text(), 'Blocked',
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-warning').text(), 'Blocked',
             "the label should say 'Blocked' since this is the label value for that state");
 
         // // switch to edit mode and check the result
         form.$buttons.find('.o_form_button_edit').click();
-        assert.strictEqual(form.$('.o_field_widget.label.label-warning').length, 1,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-warning').length, 1,
             "should have a warning status label since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-default').length, 0,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-secondary').length, 0,
             "should not have a default status since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-success').length, 0,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-success').length, 0,
             "should not have a success status since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-warning').text(), 'Blocked',
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-warning').text(), 'Blocked',
             "the label should say 'Blocked' since this is the label value for that state");
 
         // save
         form.$buttons.find('.o_form_button_save').click();
-        assert.strictEqual(form.$('.o_field_widget.label.label-warning').length, 1,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-warning').length, 1,
             "should have a warning status label since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-default').length, 0,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-secondary').length, 0,
             "should not have a default status since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-success').length, 0,
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-success').length, 0,
             "should not have a success status since selection is the second, blocked state");
-        assert.strictEqual(form.$('.o_field_widget.label.label-warning').text(), 'Blocked',
+        assert.strictEqual(form.$('.o_field_widget.badge.badge-warning').text(), 'Blocked',
             "the label should say 'Blocked' since this is the label value for that state");
 
         form.destroy();
@@ -4003,57 +4716,57 @@ QUnit.module('basic_fields', {
             arch: '<tree editable="bottom">' +
                     '<field name="foo"/>' +
                     '<field name="selection" widget="label_selection"' +
-                    ' options="{\'classes\': {\'normal\': \'default\', \'blocked\': \'warning\',\'done\': \'success\'}}"/>' +
+                    ' options="{\'classes\': {\'normal\': \'secondary\', \'blocked\': \'warning\',\'done\': \'success\'}}"/>' +
                   '</tree>',
         });
 
-        assert.strictEqual(list.$('.o_field_widget.label:not(:empty)').length, 3,
+        assert.strictEqual(list.$('.o_field_widget.badge:not(:empty)').length, 3,
             "should have three visible status labels");
-        assert.strictEqual(list.$('.o_field_widget.label.label-warning').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-warning').length, 1,
             "should have one warning status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-warning').text(), 'Blocked',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-warning').text(), 'Blocked',
             "the warning label should read 'Blocked'");
-        assert.strictEqual(list.$('.o_field_widget.label.label-default').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-secondary').length, 1,
             "should have one default status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-default').text(), 'Normal',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-secondary').text(), 'Normal',
             "the default label should read 'Normal'");
-        assert.strictEqual(list.$('.o_field_widget.label.label-success').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-success').length, 1,
             "should have one success status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-success').text(), 'Done',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-success').text(), 'Done',
             "the success label should read 'Done'");
 
         // switch to edit mode and check the result
         list.$('tbody td:not(.o_list_record_selector)').first().click();
-        assert.strictEqual(list.$('.o_field_widget.label:not(:empty)').length, 3,
+        assert.strictEqual(list.$('.o_field_widget.badge:not(:empty)').length, 3,
             "should have three visible status labels");
-        assert.strictEqual(list.$('.o_field_widget.label.label-warning').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-warning').length, 1,
             "should have one warning status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-warning').text(), 'Blocked',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-warning').text(), 'Blocked',
             "the warning label should read 'Blocked'");
-        assert.strictEqual(list.$('.o_field_widget.label.label-default').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-secondary').length, 1,
             "should have one default status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-default').text(), 'Normal',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-secondary').text(), 'Normal',
             "the default label should read 'Normal'");
-        assert.strictEqual(list.$('.o_field_widget.label.label-success').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-success').length, 1,
             "should have one success status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-success').text(), 'Done',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-success').text(), 'Done',
             "the success label should read 'Done'");
 
         // save and check the result
         list.$buttons.find('.o_list_button_save').click();
-        assert.strictEqual(list.$('.o_field_widget.label:not(:empty)').length, 3,
+        assert.strictEqual(list.$('.o_field_widget.badge:not(:empty)').length, 3,
             "should have three visible status labels");
-        assert.strictEqual(list.$('.o_field_widget.label.label-warning').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-warning').length, 1,
             "should have one warning status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-warning').text(), 'Blocked',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-warning').text(), 'Blocked',
             "the warning label should read 'Blocked'");
-        assert.strictEqual(list.$('.o_field_widget.label.label-default').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-secondary').length, 1,
             "should have one default status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-default').text(), 'Normal',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-secondary').text(), 'Normal',
             "the default label should read 'Normal'");
-        assert.strictEqual(list.$('.o_field_widget.label.label-success').length, 1,
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-success').length, 1,
             "should have one success status label");
-        assert.strictEqual(list.$('.o_field_widget.label.label-success').text(), 'Done',
+        assert.strictEqual(list.$('.o_field_widget.badge.badge-success').text(), 'Done',
             "the success label should read 'Done'");
 
         list.destroy();
@@ -4356,9 +5069,9 @@ QUnit.module('basic_fields', {
 
     // TODO: This test would pass without any issue since all the classes and
     //       custom style attributes are correctly set on the widget in list
-    //       view, but since the less itself for this widget currently only
+    //       view, but since the scss itself for this widget currently only
     //       applies inside the form view, the widget is unusable. This test can
-    //       be uncommented when we refactor the less files so that this widget
+    //       be uncommented when we refactor the scss files so that this widget
     //       stylesheet applies in both form and list view.
     // QUnit.test('percentpie widget in editable list view', function(assert) {
     //     assert.expect(10);
@@ -4699,41 +5412,44 @@ QUnit.module('basic_fields', {
         form.destroy();
     });
 
-    QUnit.module('FieldImageSelection');
+    QUnit.module('FieldProgressBar');
 
-    QUnit.test('image selection widget in form view', function (assert) {
-        assert.expect(3);
+    QUnit.test('Field ProgressBar: max_value should update', function (assert) {
+        assert.expect(2);
 
-        var nodeOptions = {
-            background: {
-                image_link: '/base/static/img/preview_background.png',
-                preview_link: '/base/static/pdf/preview_background.pdf',
-            },
-            boxed: {
-                image_link: '/base/static/img/preview_boxed.png',
-                preview_link: '/base/static/pdf/preview_boxed.pdf',
-            },
+        this.data.partner.records = this.data.partner.records.slice(0,1);
+        this.data.partner.records[0].qux = 2;
+
+        this.data.partner.onchanges = {
+            display_name: function (obj) {
+                obj.int_field = 999;
+                obj.qux = 5;
+            }
         };
+
         var form = createView({
             View: FormView,
             model: 'partner',
             data: this.data,
             arch: '<form>' +
-                    '<field name="image_selection" widget="image_selection"' +
-                    ' options=\'' + JSON.stringify(nodeOptions) + '\'/> '+
-                  '</form>',
-            res_id: 2,
+                    '<field name="display_name" />' +
+                    '<field name="qux" invisible="1" />' +
+                    '<field name="int_field" widget="progressbar" options="{\'current_value\': \'int_field\', \'max_value\': \'qux\'}" />' +
+                '</form>',
+            res_id: 1,
+            viewOptions: {
+                mode: 'edit',
+            },
         });
 
-        assert.strictEqual(form.$('.img.img-responsive').length, 2,
-            "Two images should be rendered");
-        assert.strictEqual(form.$('.img.btn-info').length, 0,
-            "No image should be selected");
+        assert.strictEqual(form.$('.o_progressbar_value').text(), '10 / 2',
+            'The initial value of the progress bar should be correct');
 
-        // select first image
-        form.$(".img.img-responsive:first").click();
-        assert.ok(form.$(".img.img-responsive:first").hasClass('btn-info'),
-            "First image should be selected");
+        // trigger the onchange
+        form.$('.o_input[name=display_name]').val('new name').trigger('input');
+
+        assert.strictEqual(form.$('.o_progressbar_value').text(), '999 / 5',
+            'The value of the progress bar should be correct after the update');
 
         form.destroy();
     });
