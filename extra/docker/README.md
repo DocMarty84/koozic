@@ -18,7 +18,7 @@ docker build -t koozic .
 ```
 3. Run:
 ```
-docker run -d -p 8069:8069 -p 8072:8072 -v <host_folder>:/mnt/host:ro --name koozic koozic
+docker run -d -p 8069:8069 -p 8072:8072 -v <host_folder>:/mnt/host:ro --name koozic koozic --
 ```
 Replace `<host_folder>` by the music folder you want to share. It will be available in `/mnt/host`
 inside the container. KooZic should now be available at

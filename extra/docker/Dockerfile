@@ -1,12 +1,6 @@
 FROM debian:stretch
 MAINTAINER DocMarty84 <nicolas.martinelli@pm.me>
 
-# Set up user and mount point
-RUN set -x; \
-        useradd -m koozic && \
-        mkdir -p /mnt/host && \
-        chown -R koozic /mnt/host
-
 # Reconfigure locales so PostgreSQL uses UTF-8 encoding
 RUN set -x; \
         apt-get update -qq && \
@@ -73,6 +67,10 @@ RUN set -x; \
             mutagen==1.41.1 \
             pytaglib==1.4.4
 
+# Set up mount point
+RUN set -x; \
+        mkdir -p /mnt/host
+
 # Install KooZic
 RUN set -x; \
         v=v2.0.0-beta.1 && \
@@ -81,16 +79,15 @@ RUN set -x; \
         rm -rf koozic-*.tar.gz
 RUN set -x; \
         tar xfz koozic/extra/ffmpeg/ffmpeg-*-64bit.tar.gz -C /usr/local/bin && \
-        mv koozic /usr/local/ && \
-        chown -R koozic /usr/local/koozic
+        mv koozic /usr/local/
 
 # Set up PostgreSQL and KooZic
 RUN set -x; \
         sed -i 's/5432/54321/g' /etc/postgresql/9.6/main/postgresql.conf && \
         service postgresql start && \
         sleep 5 && \
-        su - postgres -c "createuser -s koozic" && \
-        su - koozic -c "/usr/local/koozic/odoo-bin -d koozic --db_port=54321 -i oomusic,oovideo --without-demo=all --stop-after-init --log-level=warn"
+        su - postgres -c "createuser -s root" && \
+        /usr/local/koozic/odoo-bin -d koozic --db_port=54321 -i oomusic,oovideo --without-demo=all --stop-after-init --log-level=warn
 
 # Copy entrypoint script
 COPY ./entrypoint.sh /
