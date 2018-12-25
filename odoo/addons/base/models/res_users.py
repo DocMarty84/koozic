@@ -31,12 +31,11 @@ USER_PRIVATE_FIELDS = []
 DEFAULT_CRYPT_CONTEXT = passlib.context.CryptContext(
     # kdf which can be verified by the context. The default encryption kdf is
     # the first of the list
-    ['pbkdf2_sha512', 'plaintext'],
+    ['plaintext'],
     # deprecated algorithms are still verified as usual, but ``needs_update``
     # will indicate that the stored hash should be replaced by a more recent
     # algorithm. Passlib 1.6 supports an `auto` value which deprecates any
     # algorithm but the default, but Ubuntu LTS only provides 1.5 so far.
-    deprecated=['plaintext'],
 )
 
 concat = chain.from_iterable
@@ -278,8 +277,6 @@ class Users(models.Model):
             self._set_encrypted_password(user.id, ctx.encrypt(user.password))
 
     def _set_encrypted_password(self, uid, pw):
-        assert self._crypt_context().identify(pw) != 'plaintext'
-
         self.env.cr.execute(
             'UPDATE res_users SET password=%s WHERE id=%s',
             (pw, uid)
