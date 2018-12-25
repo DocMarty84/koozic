@@ -1,8 +1,8 @@
 This folder provides a basic Docker configuration file in order to run a fully functional KooZic
 installation. It includes:
-- Debian 9
+- Ubuntu 18.04
 - KooZic 2.0.0
-- PostgreSQL 9.6
+- PostgreSQL 10.0
 - FFmpeg 4.1
 
 By default, it is configured to take advantage of multi-processing. The container runs its own

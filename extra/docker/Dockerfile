@@ -1,4 +1,4 @@
-FROM debian:stretch
+FROM ubuntu:18.04
 MAINTAINER DocMarty84 <nicolas.martinelli@pm.me>
 
 # Reconfigure locales so PostgreSQL uses UTF-8 encoding
@@ -14,6 +14,7 @@ RUN set -x; \
 ENV LC_ALL en_US.UTF-8
 
 # Install apt dependencies
+ARG DEBIAN_FRONTEND=noninteractive
 RUN set -x; \
         apt-get install -y --no-install-recommends -qq \
             adduser \
@@ -83,7 +84,7 @@ RUN set -x; \
 
 # Set up PostgreSQL and KooZic
 RUN set -x; \
-        sed -i 's/5432/54321/g' /etc/postgresql/9.6/main/postgresql.conf && \
+        sed -i 's/5432/54321/g' /etc/postgresql/10/main/postgresql.conf && \
         service postgresql start && \
         sleep 5 && \
         su - postgres -c "createuser -s root" && \
