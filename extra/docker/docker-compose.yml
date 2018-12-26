@@ -1,0 +1,32 @@
+version: '3.7'
+
+services:
+
+    app:
+        container_name: koozic_app
+        restart: always
+        build: .
+        image: koozic_app:latest
+        volumes:
+            - koozic_app:/home/koozic/.local
+            - /music:/mnt/host:ro
+        depends_on:
+            - db
+        ports:
+            - 8069:8069
+            - 8072:8072
+
+    db:
+        container_name: koozic_db
+        restart: always
+        image: postgres:10.6
+        volumes:
+            - koozic_db:/var/lib/postgresql
+        environment:
+            - POSTGRES_USER=koozic
+            - POSTGRES_PASSWORD=koozic
+            - POSTGRES_DB=koozic
+
+volumes:
+    koozic_app:
+    koozic_db:

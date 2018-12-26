@@ -1,11 +1,11 @@
 FROM ubuntu:18.04
 MAINTAINER DocMarty84 <nicolas.martinelli@pm.me>
 
-# Reconfigure locales so PostgreSQL uses UTF-8 encoding
+# Reconfigure locales to use UTF-8 encoding
 RUN set -x; \
         apt-get update -qq && \
-        apt-get install -y --no-install-recommends -qq locales && \
-        apt-get clean -qq
+        apt-get install -y --no-install-recommends -qq locales
+
 RUN set -x; \
         dpkg-reconfigure -fnoninteractive locales && \
         sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen && \
@@ -22,8 +22,6 @@ RUN set -x; \
             libtag1-dev \
             lsb-base \
             mediainfo \
-            postgresql \
-            postgresql-client \
             python3-babel \
             python3-chardet \
             python3-dateutil \
@@ -66,11 +64,14 @@ RUN set -x; \
 RUN set -x; \
         pip3 install \
             mutagen==1.41.1 \
-            pytaglib==1.4.4
+            pytaglib==1.4.4 \
+            num2words==0.5.6
 
-# Set up mount point
+# Set up user and mount point
 RUN set -x; \
-        mkdir -p /mnt/host
+        useradd -m koozic && \
+        mkdir -p /mnt/host && \
+        chown -R koozic /mnt/host
 
 # Install KooZic
 RUN set -x; \
@@ -79,16 +80,8 @@ RUN set -x; \
         tar xfz koozic-*.tar.gz && \
         rm -rf koozic-*.tar.gz
 RUN set -x; \
-        tar xfz koozic/extra/ffmpeg/ffmpeg-*-64bit.tar.gz -C /usr/local/bin && \
-        mv koozic /usr/local/
-
-# Set up PostgreSQL and KooZic
-RUN set -x; \
-        sed -i 's/5432/54321/g' /etc/postgresql/10/main/postgresql.conf && \
-        service postgresql start && \
-        sleep 5 && \
-        su - postgres -c "createuser -s root" && \
-        /usr/local/koozic/odoo-bin -d koozic --db_port=54321 -i oomusic,oovideo --without-demo=all --stop-after-init --log-level=warn
+        mv koozic /usr/local/ && \
+        chown -R koozic /usr/local/koozic
 
 # Copy entrypoint script
 COPY ./entrypoint.sh /

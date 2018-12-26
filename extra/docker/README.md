@@ -1,33 +1,24 @@
-This folder provides a basic Docker configuration file in order to run a fully functional KooZic
-installation. It includes:
+This folder provides a basic Docker configuration using Docker-compose in order to run a fully
+functional KooZic installation. It includes:
 - Ubuntu 18.04
 - KooZic 2.0.0
-- PostgreSQL 10.0
 - FFmpeg 4.1
+- PostgreSQL from Docker hub
 
-By default, it is configured to take advantage of multi-processing. The container runs its own
-PostgreSQL server on port 54321. Therefore, the latter should be available on your host system.
-
-# Set up the container
+# Set up containers
 
 1. Install Docker following the
 [official instructions](https://docs.docker.com/engine/installation/)
 2. Build:
 ```
-docker build -t koozic .
+docker-compose build
 ```
-3. Run:
+3. Configure:
+Edit `docker-compose.yml` and replace `/music` by the music folder you want to share.
+4. Run:
 ```
-docker run -d -p 8069:8069 -p 8072:8072 -v <host_folder>:/mnt/host:ro --name koozic koozic --
+docker-compose up -d
 ```
-Replace `<host_folder>` by the music folder you want to share. It will be available in `/mnt/host`
-inside the container. KooZic should now be available at
-[http://localhost:8069](http://localhost:8069).
 
-# Execute the container
-
-The usual Docker instructions can be used to start and stop the container:
-```
-docker start koozic
-docker stop koozic
-```
+KooZic should now be available at [http://localhost:8069](http://localhost:8069).
+Don't forget to add `/mnt/host` in the Folders section.
