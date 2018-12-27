@@ -80,6 +80,7 @@ RUN set -x; \
         tar xfz koozic-*.tar.gz && \
         rm -rf koozic-*.tar.gz
 RUN set -x; \
+        tar xfz koozic/extra/ffmpeg/ffmpeg-*-64bit.tar.gz -C /usr/local/bin && \
         mv koozic /usr/local/ && \
         chown -R koozic /usr/local/koozic
 
