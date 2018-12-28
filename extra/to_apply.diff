@@ -78,7 +78,7 @@ index 7ce6ea97cf7..ab820e70365 100644
 +++ b/odoo/release.py
 @@ -35,3 +35,11 @@ author_email = 'info@odoo.com'
  license = 'LGPL-3'
- 
+
  nt_service_name = "odoo-server-" + series.replace('~','-')
 +
 +
@@ -88,3 +88,53 @@ index 7ce6ea97cf7..ab820e70365 100644
 +if os.path.isfile(version_file):
 +    with open(os.path.join(os.sep, version_file), 'r') as f:
 +        version = f.readline()
+diff --git a/addons/auth_ldap/__manifest__.py b/addons/auth_ldap/__manifest__.py
+index 62fa393e24d..3c6cca8d581 100644
+--- a/addons/auth_ldap/__manifest__.py
++++ b/addons/auth_ldap/__manifest__.py
+@@ -2,14 +2,14 @@
+
+ {
+     'name' : 'Authentication via LDAP',
+-    'depends' : ['base', 'base_setup'],
++    'depends' : ['base'],
+     #'description': < auto-loaded from README file
+     'category' : 'Extra Tools',
+     'data' : [
+         'views/ldap_installer_views.xml',
+         'security/ir.model.access.csv',
+-        'views/res_config_settings_views.xml',
+     ],
++    'application': True,
+     'external_dependencies' : {
+         'python' : ['ldap'],
+     }
+diff --git a/addons/auth_ldap/models/__init__.py b/addons/auth_ldap/models/__init__.py
+index 9e041b4c84f..50c37a99180 100644
+--- a/addons/auth_ldap/models/__init__.py
++++ b/addons/auth_ldap/models/__init__.py
+@@ -3,4 +3,3 @@
+ from . import res_company
+ from . import res_company_ldap
+ from . import res_users
+-from . import res_config_settings
+\ No newline at end of file
+diff --git a/addons/auth_ldap/views/ldap_installer_views.xml b/addons/auth_ldap/views/ldap_installer_views.xml
+index 9d8bc50ed0a..f8ccd92f65e 100644
+--- a/addons/auth_ldap/views/ldap_installer_views.xml
++++ b/addons/auth_ldap/views/ldap_installer_views.xml
+@@ -47,11 +47,13 @@
+
+         <!-- ldap installer  action -->
+         <record id="action_ldap_installer" model="ir.actions.act_window">
+-             <field name="name">Setup your LDAP Server</field>
++             <field name="name">LDAP Servers</field>
+              <field name="type">ir.actions.act_window</field>
+              <field name="res_model">res.company.ldap</field>
+              <field name="view_type">form</field>
+              <field name="view_mode">tree,form</field>
+         </record>
+
++        <!-- Second Level Menu -->
++        <menuitem id="menu_action_ldap_installer" parent="base.menu_users" action="action_ldap_installer" sequence="100"/>
+ </odoo>

@@ -1,3 +1,4 @@
+addons/auth_ldap
 addons/decimal_precision
 addons/web
 addons/web_diagram
