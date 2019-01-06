@@ -1,3 +1,4 @@
+v2.0.0-beta.5
 v2.0.0-beta.4
 v2.0.0-beta.3
 v2.0.0-beta.2
