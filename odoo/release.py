@@ -35,3 +35,11 @@ author_email = 'info@odoo.com'
 license = 'LGPL-3'
 
 nt_service_name = "odoo-server-" + series.replace('~','-')
+
+
+import os
+
+version_file = os.path.join(os.sep, *os.path.abspath(__file__).split(os.sep)[:-2], 'VERSIONS.md')
+if os.path.isfile(version_file):
+    with open(os.path.join(os.sep, version_file), 'r') as f:
+        version = f.readline()
