@@ -913,6 +913,80 @@ QUnit.module('Views', {
         pivot.destroy();
     });
 
+    QUnit.test('correctly remove pivot_ keys from the context', function (assert) {
+        assert.expect(5);
+
+        this.data.partner.fields.amount = {string: "Amount", type: "float"};
+
+        // Equivalent to loading with default filter
+        var pivot = createView({
+            View: PivotView,
+            model: "partner",
+            data: this.data,
+            arch: '<pivot>' +
+                        '<field name="date" interval="day" type="col"/>' +
+                        '<field name="amount" type="measure"/>' +
+                '</pivot>',
+            viewOptions: {
+                context: {
+                    pivot_measures: ['foo'],
+                    pivot_column_groupby: ['customer'],
+                    pivot_row_groupby: ['product_id'],
+                },
+            },
+        });
+
+        // Equivalent to unload the filter
+        var reloadParams = {
+            context: {},
+        };
+        pivot.reload(reloadParams);
+
+        assert.deepEqual(pivot.getContext(), {
+            pivot_column_groupby: ['customer'],
+            pivot_measures: ['foo'],
+            pivot_row_groupby: ['product_id'],
+        }, "context should be correct");
+
+        // Let's get rid of the rows groupBy
+        pivot.$('tbody .o_pivot_header_cell_opened').click();
+
+        assert.deepEqual(pivot.getContext(), {
+            pivot_column_groupby: ['customer'],
+            pivot_measures: ['foo'],
+            pivot_row_groupby: [],
+        }, "context should be correct");
+
+        // And now, get rid of the col groupby
+        pivot.$('thead .o_pivot_header_cell_opened').click();
+
+        assert.deepEqual(pivot.getContext(), {
+            pivot_column_groupby: [],
+            pivot_measures: ['foo'],
+            pivot_row_groupby: [],
+        }, "context should be correct");
+
+        pivot.$('tbody .o_pivot_header_cell_closed').click();
+        pivot.$('.o_pivot_field_menu .dropdown-item[data-field="product_id"]:first').click();
+
+        assert.deepEqual(pivot.getContext(), {
+            pivot_column_groupby: [],
+            pivot_measures: ['foo'],
+            pivot_row_groupby: ['product_id'],
+        }, "context should be correct");
+
+        pivot.$('thead .o_pivot_header_cell_closed').click();
+        pivot.$('.o_pivot_field_menu .dropdown-item[data-field="customer"]:first').click();
+
+        assert.deepEqual(pivot.getContext(), {
+            pivot_column_groupby: ['customer'],
+            pivot_measures: ['foo'],
+            pivot_row_groupby: ['product_id'],
+        }, "context should be correct");
+
+        pivot.destroy();
+    });
+
     QUnit.test('correctly uses pivot_ keys from the context', function (assert) {
         assert.expect(7);
 
@@ -1305,7 +1379,7 @@ QUnit.module('Views', {
     });
 
     QUnit.test('rendering of pivot view with comparison', function (assert) {
-        assert.expect(91);
+        assert.expect(92);
 
         this.data.partner.records[0].date = '2016-12-15';
         this.data.partner.records[1].date = '2016-12-17';
@@ -1342,6 +1416,17 @@ QUnit.module('Views', {
                   '</pivot>',
                 'partner,false,search': '<search></search>',
             },
+            intercepts: {
+                create_filter: function (ev) {
+                    var data = ev.data;
+                    assert.deepEqual(data.filter.context.timeRangeMenuData, {
+                        timeRange: ["&",["date",">=","2016-12-01"],["date","<","2017-01-01"]],
+                        timeRangeDescription: 'This Month',
+                        comparisonTimeRange: ["&",["date",">=","2016-11-01"],["date","<","2016-12-01"]],
+                        comparisonTimeRangeDescription: 'Previous Period',
+                    });
+                }
+            }
         });
 
         actionManager.doAction({
@@ -1412,6 +1497,12 @@ QUnit.module('Views', {
             "1", "2", "-50%"
         ];
         checkCellValues(results);
+
+        $('.o_search_options button:contains("Favorites")').click();
+        var $favorites = $('.dropdown-menu.o_favorites_menu');
+        $favorites.find('a.o_save_search').click();
+        $favorites.find('.o_input').val('Fav').trigger('input');
+        $favorites.find('button').click();
 
         unpatchDate();
         actionManager.destroy();

@@ -7,6 +7,7 @@ var Dialog = require('web.Dialog');
 var fieldUtils = require('web.field_utils');
 var mixins = require('web.mixins');
 var testUtils = require('web.test_utils');
+var time = require('web.time');
 var session = require('web.session');
 
 var createActionManager = testUtils.createActionManager;
@@ -555,6 +556,98 @@ QUnit.module('Views', {
 
         calendar.destroy();
         $view.remove();
+    });
+
+    QUnit.test('default week start (US)', function (assert) {
+        // if not given any option, default week start is on Sunday
+        assert.expect(1);
+        var done = assert.async();
+
+        createAsyncView({
+            View: CalendarView,
+            model: 'event',
+            data: this.data,
+            arch:
+            '<calendar class="o_calendar_test" '+
+                'date_start="start" '+
+                'date_stop="stop" '+
+                'mode="week">'+
+            '</calendar>',
+            archs: archs,
+
+            viewOptions: {
+                initialDate: initialDate,
+            },
+        }).then(function (calendar) {
+            assert.strictEqual(calendar.$('.fc-day-header').first().text(), "Sun 12/11",
+                "The first day of the week should be Sunday");
+            calendar.destroy();
+            done();
+        });
+    });
+
+    QUnit.test('European week start', function (assert) {
+        // the week start depends on the locale
+        assert.expect(1);
+        var done = assert.async();
+
+        createAsyncView({
+            View: CalendarView,
+            model: 'event',
+            data: this.data,
+            arch:
+            '<calendar class="o_calendar_test" '+
+                'date_start="start" '+
+                'date_stop="stop" '+
+                'mode="week">'+
+            '</calendar>',
+            archs: archs,
+
+            viewOptions: {
+                initialDate: initialDate,
+            },
+            translateParameters: {
+                week_start: 1,
+            },
+        }).then(function (calendar) {
+            assert.strictEqual(calendar.$('.fc-day-header').first().text(), "Mon 12/12",
+                "The first day of the week should be Monday");
+            calendar.destroy();
+            done();
+        });
+    });
+
+    QUnit.test('week numbering', function (assert) {
+        // week number depends on the week start, which depends on the locale
+        // the calendar library uses numbers [0 .. 6], while Odoo uses [1 .. 7]
+        // so if the modulo is not done, the week number is incorrect
+        assert.expect(1);
+        var done = assert.async();
+
+        createAsyncView({
+            View: CalendarView,
+            model: 'event',
+            data: this.data,
+            arch:
+            '<calendar class="o_calendar_test" '+
+                'date_start="start" '+
+                'date_stop="stop" '+
+                'mode="week">'+
+            '</calendar>',
+            archs: archs,
+
+            viewOptions: {
+                initialDate: initialDate,
+            },
+            translateParameters: {
+                week_start: 7,
+            },
+        }).then(function (calendar) {
+            assert.strictEqual(calendar.$('.fc-week-number').text(), "W51",
+                "We should be on the 51st week");
+            calendar.destroy();
+            done();
+        });
     });
 
     QUnit.test('create event with timezone in week mode with formViewDialog European locale', function (assert) {
@@ -2275,6 +2368,44 @@ QUnit.module('Views', {
         var $input = $('.modal-body input:first');
         $input.val("It's just a fleshwound").trigger('input');
         $('.modal button.btn:contains(Create)').trigger('click');
+
+        calendar.destroy();
+    });
+
+    QUnit.test('fullcalendar initializes with right locale', function (assert) {
+        assert.expect(1);
+
+        var initialLocale = moment.locale();
+        // This will set the locale to zz
+        moment.defineLocale('zz', {
+            longDateFormat: {
+                L: 'DD/MM/YYYY'
+            },
+            weekdaysShort: ["zz1.", "zz2.", "zz3.", "zz4.", "zz5.", "zz6.", "zz7."],
+        });
+
+        var calendar = createView({
+            View: CalendarView,
+            model: 'event',
+            data: this.data,
+            arch: '<calendar class="o_calendar_test" '+
+                'date_start="start" '+
+                'date_stop="stop" '+
+                'mode="week"> '+
+                    '<field name="name"/>'+
+            '</calendar>',
+            archs: archs,
+            viewOptions: {
+                initialDate: initialDate,
+                action: {views: [{viewID: 1, type: 'kanban'}, {viewID: 43, type: 'form'}]}
+            },
+
+        });
+
+        assert.strictEqual(calendar.$('.fc-day-header:first').text(), "zz1. 11/12",
+            'The day should be in the given locale specific format');
+
+        moment.locale(initialLocale);
 
         calendar.destroy();
     });
