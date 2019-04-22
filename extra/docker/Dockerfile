@@ -65,7 +65,8 @@ RUN set -x; \
         pip3 install \
             mutagen==1.41.1 \
             pytaglib==1.4.4 \
-            num2words==0.5.6
+            num2words==0.5.6 \
+            webvtt-py==0.4.2
 
 # Set up user and mount point
 RUN set -x; \
