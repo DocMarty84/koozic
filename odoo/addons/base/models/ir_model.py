@@ -185,6 +185,11 @@ class IrModel(models.Model):
                     self._cr.execute('DROP VIEW "%s"' % table)
                 elif kind == 'r':
                     self._cr.execute('DROP TABLE "%s" CASCADE' % table)
+                    # discard all translations for this model
+                    self._cr.execute("""
+                        DELETE FROM ir_translation
+                        WHERE type IN ('model', 'model_terms') AND name LIKE %s
+                    """, [model.model + ',%'])
             else:
                 _logger.warning('The model %s could not be dropped because it did not exist in the registry.', model.model)
         return True
@@ -198,6 +203,9 @@ class IrModel(models.Model):
                     raise UserError(_("Model '%s' contains module data and cannot be removed.") % model.name)
                 # prevent screwing up fields that depend on these models' fields
                 model.field_id._prepare_update()
+
+        # delete fields whose comodel is being removed
+        self.env['ir.model.fields'].search([('relation', 'in', self.mapped('model'))]).unlink()
 
         self._drop_table()
         res = super(IrModel, self).unlink()
@@ -571,6 +579,12 @@ class IrModelFields(models.Model):
                 tables_to_drop.add(rel_name)
             if field.state == 'manual' and is_model:
                 model._pop_field(field.name)
+            if field.translate:
+                # discard all translations for this field
+                self._cr.execute("""
+                    DELETE FROM ir_translation
+                    WHERE type IN ('model', 'model_terms') AND name=%s
+                """, ['%s,%s' % (field.model, field.name)])
 
         if tables_to_drop:
             # drop the relation tables that are not used by other fields
@@ -1591,9 +1605,17 @@ class IrModelData(models.Model):
 
         # Remove non-model records first, then model fields, and finish with models
         undeletable += unlink_if_refcount(item for item in to_unlink if item[0] not in ('ir.model', 'ir.model.fields', 'ir.model.constraint'))
+
+        # Remove copied views. This must happen after removing all records from
+        # the modules to remove, otherwise ondelete='restrict' may prevent the
+        # deletion of some view. This must also happen before cleaning up the
+        # database schema, otherwise some dependent fields may no longer exist
+        # in database.
+        modules = self.env['ir.module.module'].search([('name', 'in', modules_to_remove)])
+        modules._remove_copied_views()
+
         undeletable += unlink_if_refcount(item for item in to_unlink if item[0] == 'ir.model.constraint')
 
-        modules = self.env['ir.module.module'].search([('name', 'in', modules_to_remove)])
         constraints = self.env['ir.model.constraint'].search([('module', 'in', modules.ids)])
         constraints._module_data_uninstall()
 

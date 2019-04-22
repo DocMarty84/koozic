@@ -13,11 +13,12 @@
 # Manuela Feliciani <mfeliciani@alice.it>, 2018
 # Giovanni Perteghella <giovanni@perteghella.org>, 2018
 # David Minneci <david@numeko.it>, 2018
-# Léonie Bouchat <lbo@odoo.com>, 2018
 # Paolo Valier, 2018
 # mymage <stefano.consolaro@mymage.it>, 2018
 # Simone Bernini <simone@aperturelabs.it>, 2018
 # Martin Trigaux, 2019
+# Léonie Bouchat <lbo@odoo.com>, 2019
+# Lorenzo Battistini <lorenzo.battistini@agilebg.com>, 2019
 # Sergio Zanchetta <primes2h@gmail.com>, 2019
 # 
 msgid ""
@@ -242,7 +243,7 @@ msgstr ""
 #. module: web
 #: model_terms:ir.ui.view,arch_db:web.external_layout_background
 msgid "<i class=\"fa fa-phone\" role=\"img\" aria-label=\"Phone\" title=\"Phone\"/>"
-msgstr ""
+msgstr "<i class=\"fa fa-phone\" role=\"img\" aria-label=\"Phone\" title=\"Phone\"/>"
 
 #. module: web
 #. openerp-web
@@ -252,6 +253,9 @@ msgid ""
 "A popup window has been blocked. You may need to change your browser "
 "settings to allow popup windows for this page."
 msgstr ""
+"Una finestra popup è stata bloccata. Potresti aver bisogno di modificare le "
+"impostazioni del tuo browser per permettere le finestre popup per questa "
+"pagina."
 
 #. module: web
 #. openerp-web
@@ -840,7 +844,7 @@ msgstr "Titolo colonna"
 #: code:addons/web/static/src/xml/base.xml:1185
 #, python-format
 msgid "Compare To"
-msgstr "Confrontare con"
+msgstr "Confronta con"
 
 #. module: web
 #. openerp-web
@@ -2642,6 +2646,7 @@ msgstr ""
 #. module: web
 #. openerp-web
 #: code:addons/web/static/src/xml/base.xml:741
+#: code:addons/web/static/src/xml/base.xml:1505
 #: code:addons/web/static/src/xml/web_calendar.xml:75
 #, python-format
 msgid "Previous"
@@ -2696,7 +2701,7 @@ msgstr ""
 #. module: web
 #: model:ir.model,name:web.model_ir_qweb_field_image
 msgid "Qweb Field Image"
-msgstr ""
+msgstr "Campo qweb immagine"
 
 #. module: web
 #. openerp-web
@@ -3342,7 +3347,7 @@ msgstr "Intervallo di tempo"
 #: code:addons/web/static/src/xml/base.xml:1139
 #, python-format
 msgid "Time Ranges"
-msgstr "Intervalli di tempo"
+msgstr "Intervalli temporali"
 
 #. module: web
 #. openerp-web
@@ -3400,6 +3405,8 @@ msgid ""
 "Try to add some records, or make sure\n"
 "                that there is at least one measure and no active filter in the search bar."
 msgstr ""
+"Provare ad aggiungere alcuni record o\n"
+"                controllare che ci sia almeno una misura e nessun filtro attivo nella barra di ricerca."
 
 #. module: web
 #. openerp-web
@@ -3409,6 +3416,8 @@ msgid ""
 "Try to add some records, or make sure that there is no active filter in the "
 "search bar."
 msgstr ""
+"Provare ad aggiungere alcuni record o controllare che non ci siano filtri "
+"attivi nella barra di ricerca."
 
 #. module: web
 #. openerp-web
