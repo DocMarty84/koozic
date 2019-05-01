@@ -5,8 +5,7 @@ services:
     app:
         container_name: koozic_app
         restart: always
-        build: .
-        image: koozic_app:latest
+        image: docmarty84/koozic
         volumes:
             - koozic_app:/home/koozic/.local
             - /music:/mnt/host:ro
