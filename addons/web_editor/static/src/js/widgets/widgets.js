@@ -253,9 +253,10 @@ var ImageWidget = MediaWidget.extend({
         } else if (this.$media.is('a.o_image')) {
             o.url = this.$media.attr('href').replace(/[?].*/, '');
             o.id = +o.url.match(/\/web\/content\/(\d+)/, '')[1];
+            o.isDocument = true;
         }
         if (o.url) {
-            self._toggleImage(_.find(self.records, function (record) { return record.url === o.url;}) || o, true);
+            self._toggleImage(_.find(self.records, function (record) { return record.src === o.url;}) || o, true);
         }
 
         return def;
@@ -1405,6 +1406,7 @@ var LinkDialog = Dialog.extend({
                 }
 
                 this.data.range = range.create(sc, so, ec, eo);
+                $(editable).data("range", this.data.range);
                 this.data.range.select();
             } else {
                 nodes = dom.ancestor(sc, dom.isAnchor).childNodes;
