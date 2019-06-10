@@ -24,7 +24,7 @@ function update_koozic {
     cd ${SCRIPT_DIR}/../../odoo
     cp -r $TO_SYNC ../koozic
     cd ${SCRIPT_DIR}/..
-    mv auth_ldap decimal_precision web* addons/
+    mv auth_ldap bus web* addons/
 
     # Copy logo
     cd ${SCRIPT_DIR}
