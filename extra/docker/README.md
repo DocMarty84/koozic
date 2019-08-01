@@ -1,8 +1,7 @@
 This folder provides a basic Docker configuration using Docker-compose in order to run a fully
 functional KooZic installation. It includes:
 - Ubuntu 18.04
-- KooZic 2.0.0
-- FFmpeg 4.1
+- KooZic v2
 - PostgreSQL from Docker hub
 
 # Set up containers
