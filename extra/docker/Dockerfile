@@ -16,6 +16,7 @@ ENV LC_ALL en_US.UTF-8
 # Install apt dependencies
 ARG DEBIAN_FRONTEND=noninteractive
 RUN set -x; \
+        apt-get update -qq && \
         apt-get install -y --no-install-recommends -qq \
             adduser \
             build-essential \
