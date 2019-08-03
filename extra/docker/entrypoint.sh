@@ -7,7 +7,7 @@ sleep 5
 chown -R koozic /home/koozic/.local
 
 # Initialize db (odoo automatically detects if db is already initialized)
-echo "Initializing db..."
+echo "KooZic init process starting"
 su - koozic -c "/usr/local/koozic/odoo-bin \
                 -d koozic-v2 \
                 --db_host=db \
@@ -17,10 +17,15 @@ su - koozic -c "/usr/local/koozic/odoo-bin \
                 -u oomusic,oovideo \
                 --without-demo=all \
                 --stop-after-init \
+		--logfile /home/koozic/.local/koozic.log \
                 --log-level=warn"
-echo "DB initialization done"
+echo "KooZic init process complete"
 
 # Start koozic
+echo "Starting KooZic"
+echo "The log is available by connecting to the container:"
+echo "    docker exec -ti <CONTAINER ID> /bin/bash"
+echo "    tail -f /home/koozic/.local/koozic.log"
 su - koozic -c "/usr/local/koozic/odoo-bin \
                 --workers=4 \
                 --limit-time-cpu=1800 \
@@ -33,4 +38,5 @@ su - koozic -c "/usr/local/koozic/odoo-bin \
                 --db_password=koozic \
                 --without-demo=all \
                 --no-database-list \
+		--logfile /home/koozic/.local/koozic.log \
                 --log-level=warn"
