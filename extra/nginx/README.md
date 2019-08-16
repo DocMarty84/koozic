@@ -40,9 +40,10 @@ openssl dhparam -out dh4096.pem 4096
 mv dh4096.pem /etc/nginx/
 ```
 
-In the nginx configuration file, use the generated files as follow:
+In the nginx configuration file, use the generated files as follow (use `fullchain.pem` and not
+`cert.pem`):
 ```
-ssl_certificate     /etc/letsencrypt/live/<your_domain>/cert.pem;``
+ssl_certificate     /etc/letsencrypt/live/<your_domain>/fullchain.pem;
 ssl_certificate_key /etc/letsencrypt/live/<your_domain>/privkey.pem;
 ssl_dhparam         /etc/nginx/dh4096.pem;
 ```
