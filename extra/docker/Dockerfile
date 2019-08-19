@@ -78,7 +78,7 @@ RUN set -x; \
 
 # Install KooZic
 RUN set -x; \
-        v=v2.2.0 && \
+        v=v2.2.1 && \
         wget -q https://github.com/DocMarty84/koozic/releases/download/${v}/koozic-${v}.tar.gz && \
         tar xfz koozic-*.tar.gz && \
         rm -rf koozic-*.tar.gz
