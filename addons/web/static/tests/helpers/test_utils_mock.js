@@ -69,6 +69,7 @@ function removeSrcAttribute(el, widget) {
             if (widget) {
                 widget._rpc({ route: src });
             }
+            $(node).trigger('load');
         }
     }
 }
@@ -123,7 +124,7 @@ function removeSrcAttribute(el, widget) {
  *   is completely removed by default.
  *
  * @returns {MockServer} the instance of the mock server, created by this
- *   function. It is necessary for createAsyncView so that method can call some
+ *   function. It is necessary for createView so that method can call some
  *   other methods on it.
  */
 function addMockEnvironment(widget, params) {
@@ -160,7 +161,7 @@ function addMockEnvironment(widget, params) {
     var initialSession, initialConfig, initialParameters, initialDebounce, initialThrottle;
     initialSession = _.extend({}, session);
     session.getTZOffset = function () {
-        return 0; // by default, but may be overriden in specific tests
+        return 0; // by default, but may be overridden in specific tests
     };
     if ('session' in params) {
         _.extend(session, params.session);
@@ -172,7 +173,7 @@ function addMockEnvironment(widget, params) {
             _.extend(config.device, params.config.device);
         }
         if ('debug' in params.config) {
-            config.debug = params.config.debug;
+            odoo.debug = params.config.debug;
         }
     }
     if ('translateParameters' in params) {
@@ -198,10 +199,11 @@ function addMockEnvironment(widget, params) {
         // widget is destroyed, at the end of each test to avoid collisions
         core.bus.trigger('clear_cache');
 
-        _(services).chain()
-            .compact() // services can be defined but null (e.g. ajax)
-            .reject(function (s) { return s.isDestroyed(); })
-            .invoke('destroy');
+        Object.keys(services).forEach(function(s) {
+            var service = services[s];
+            if (service && !service.isDestroyed())
+                service.destroy();
+        });
 
         DebouncedField.prototype.DEBOUNCE = initialDebounceValue;
         dom.DEBOUNCE = initialDOMDebounceValue;
@@ -233,6 +235,7 @@ function addMockEnvironment(widget, params) {
         }
 
         $('body').off('DOMNodeInserted.removeSRC');
+        $('body').removeClass('debug');
         $('.blockUI').remove();
 
         widgetDestroy.call(this);
@@ -443,7 +446,13 @@ function patchDate(year, month, day, hours, minutes, seconds) {
         }
 
         // Copy "native" methods explicitly; they may be non-enumerable
-        Date.now = NativeDate.now;
+        // exception: 'now' uses fake date as reference
+        Date.now = function () {
+            var date = new NativeDate();
+            var time = date.getTime();
+            time -= timeInterval;
+            return time;
+        };
         Date.UTC = NativeDate.UTC;
         Date.prototype = NativeDate.prototype;
         Date.prototype.constructor = Date;
@@ -541,6 +550,25 @@ function unpatch(target) {
     delete target.__patchID;
 }
 
+window.originalSetTimeout = window.setTimeout;
+function patchSetTimeout() {
+    var original = window.setTimeout;
+    var self = this;
+    window.setTimeout = function (handler, delay) {
+        console.log("calling setTimeout on " + (handler.name || "some function") + "with delay of " + delay);
+        console.trace();
+        var handlerArguments = Array.prototype.slice.call(arguments, 1);
+        return original(function () {
+            handler.bind(self, handlerArguments)();
+            console.log('after doing the action of the setTimeout');
+        }, delay);
+    };
+
+    return function () {
+        window.setTimeout = original;
+    };
+}
+
 
 return {
     addMockEnvironment: addMockEnvironment,
@@ -549,6 +577,7 @@ return {
     patchDate: patchDate,
     patch: patch,
     unpatch: unpatch,
+    patchSetTimeout: patchSetTimeout,
 };
 
 });

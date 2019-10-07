@@ -27,13 +27,11 @@ class IrDefault(models.Model):
         self.clear_caches()
         return super(IrDefault, self).create(vals_list)
 
-    @api.multi
     def write(self, vals):
         if self:
             self.clear_caches()
         return super(IrDefault, self).write(vals)
 
-    @api.multi
     def unlink(self):
         if self:
             self.clear_caches()
@@ -57,7 +55,7 @@ class IrDefault(models.Model):
         if user_id is True:
             user_id = self.env.uid
         if company_id is True:
-            company_id = self.env.user.company_id.id
+            company_id = self.env.company.id
 
         # check consistency of model_name, field_name, and value
         try:
@@ -107,7 +105,7 @@ class IrDefault(models.Model):
         if user_id is True:
             user_id = self.env.uid
         if company_id is True:
-            company_id = self.env.user.company_id.id
+            company_id = self.env.company.id
 
         field = self.env['ir.model.fields']._get(model_name, field_name)
         default = self.search([

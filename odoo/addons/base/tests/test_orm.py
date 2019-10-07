@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from odoo.exceptions import AccessError, MissingError
 from odoo.tests.common import TransactionCase
-from odoo.tools import mute_logger, pycompat
+from odoo.tools import mute_logger
 
 
 class TestORM(TransactionCase):
@@ -26,9 +26,9 @@ class TestORM(TransactionCase):
         user = self.env['res.users'].create({
             'name': 'test user',
             'login': 'test2',
-            'groups_id': [4, self.ref('base.group_user')],
+            'groups_id': [(6, 0, [self.ref('base.group_user')])],
         })
-        ps = (p1 + p2).sudo(user)
+        ps = (p1 + p2).with_user(user)
         self.assertEqual([{'id': p2.id, 'name': 'Y'}], ps.read(['name']), "read() should skip deleted records")
         self.assertEqual([], ps[0].read(['name']), "read() should skip deleted records")
 
@@ -47,7 +47,7 @@ class TestORM(TransactionCase):
         user = self.env['res.users'].create({
             'name': 'test user',
             'login': 'test2',
-            'groups_id': [4, self.ref('base.group_user')],
+            'groups_id': [(6, 0, [self.ref('base.group_user')])],
         })
 
         partner_model = self.env['ir.model'].search([('model','=','res.partner')])
@@ -58,28 +58,28 @@ class TestORM(TransactionCase):
         })
 
         # search as unprivileged user
-        partners = self.env['res.partner'].sudo(user).search([])
+        partners = self.env['res.partner'].with_user(user).search([])
         self.assertNotIn(p1, partners, "W should not be visible...")
         self.assertIn(p2, partners, "... but Y should be visible")
 
         # read as unprivileged user
         with self.assertRaises(AccessError):
-            p1.sudo(user).read(['name'])
+            p1.with_user(user).read(['name'])
         # write as unprivileged user
         with self.assertRaises(AccessError):
-            p1.sudo(user).write({'name': 'foo'})
+            p1.with_user(user).write({'name': 'foo'})
         # unlink as unprivileged user
         with self.assertRaises(AccessError):
-            p1.sudo(user).unlink()
+            p1.with_user(user).unlink()
 
         # Prepare mixed case 
         p2.unlink()
         # read mixed records: some deleted and some filtered
         with self.assertRaises(AccessError):
-            (p1 + p2).sudo(user).read(['name'])
+            (p1 + p2).with_user(user).read(['name'])
         # delete mixed records: some deleted and some filtered
         with self.assertRaises(AccessError):
-            (p1 + p2).sudo(user).unlink()
+            (p1 + p2).with_user(user).unlink()
 
     def test_read(self):
         partner = self.env['res.partner'].create({'name': 'MyPartner1'})
@@ -111,6 +111,16 @@ class TestORM(TransactionCase):
         # search_read that finds nothing
         found = partner.search_read([('name', '=', 'Does not exists')], ['name'])
         self.assertEqual(len(found), 0)
+
+        # search_read with an empty array of fields
+        found = partner.search_read([], [], limit=1)
+        self.assertEqual(len(found), 1)
+        self.assertTrue(field in list(found[0]) for field in ['id', 'name', 'display_name', 'email'])
+
+        # search_read without fields
+        found = partner.search_read([], False, limit=1)
+        self.assertEqual(len(found), 1)
+        self.assertTrue(field in list(found[0]) for field in ['id', 'name', 'display_name', 'email'])
 
     def test_exists(self):
         partner = self.env['res.partner']
@@ -208,10 +218,10 @@ class TestORM(TransactionCase):
         user = self.env['res.users'].create({
             'name': 'Justine Bridou',
             'login': 'saucisson',
-            'groups_id': [4, self.ref('base.group_partner_manager')],
+            'groups_id': [(6, 0, [self.ref('base.group_partner_manager')])],
         })
-        p1 = self.env['res.partner'].sudo(user).create({'name': 'Zorro'})
-        p1_prop = self.env['ir.property'].sudo(user).create({
+        p1 = self.env['res.partner'].with_user(user).create({'name': 'Zorro'})
+        p1_prop = self.env['ir.property'].with_user(user).create({
             'name': 'Slip en laine',
             'res_id': 'res.partner,{}'.format(p1.id),
             'fields_id': self.env['ir.model.fields'].search([
@@ -243,7 +253,7 @@ class TestORM(TransactionCase):
 
         records = self.env['res.bank'].create(vals_list)
         self.assertEqual(len(records), len(vals_list))
-        for record, vals in pycompat.izip(records, vals_list):
+        for record, vals in zip(records, vals_list):
             self.assertEqual(record.name, vals['name'])
             self.assertEqual(record.email, vals.get('email', False))
 
@@ -279,7 +289,7 @@ class TestInherits(TransactionCase):
         """ `default_get` cannot return a dictionary or a new id """
         defaults = self.env['res.users'].default_get(['partner_id'])
         if 'partner_id' in defaults:
-            self.assertIsInstance(defaults['partner_id'], (bool, pycompat.integer_types))
+            self.assertIsInstance(defaults['partner_id'], (bool, int))
 
     def test_create(self):
         """ creating a user should automatically create a new partner """
@@ -315,19 +325,22 @@ class TestInherits(TransactionCase):
         user_foo = self.env['res.users'].create({
             'name': 'Foo',
             'login': 'foo',
-            'supplier': True,
+            'employee': True,
         })
         foo_before, = user_foo.read()
         del foo_before['__last_update']
+        del foo_before['create_date']
+        del foo_before['write_date']
         user_bar = user_foo.copy({'login': 'bar'})
         foo_after, = user_foo.read()
         del foo_after['__last_update']
-
+        del foo_after['create_date']
+        del foo_after['write_date']
         self.assertEqual(foo_before, foo_after)
 
         self.assertEqual(user_bar.name, 'Foo (copy)')
         self.assertEqual(user_bar.login, 'bar')
-        self.assertEqual(user_foo.supplier, user_bar.supplier)
+        self.assertEqual(user_foo.employee, user_bar.employee)
         self.assertNotEqual(user_foo.id, user_bar.id)
         self.assertNotEqual(user_foo.partner_id.id, user_bar.partner_id.id)
 
@@ -339,11 +352,15 @@ class TestInherits(TransactionCase):
 
         foo_before, = user_foo.read()
         del foo_before['__last_update']
+        del foo_before['create_date']
+        del foo_before['write_date']
         del foo_before['login_date']
         partners_before = self.env['res.partner'].search([])
         user_bar = user_foo.copy({'partner_id': partner_bar.id, 'login': 'bar'})
         foo_after, = user_foo.read()
         del foo_after['__last_update']
+        del foo_after['create_date']
+        del foo_after['write_date']
         del foo_after['login_date']
         partners_after = self.env['res.partner'].search([])
 
@@ -364,7 +381,7 @@ class TestInherits(TransactionCase):
         write_date_before = user.write_date
 
         # write base64 image
-        user.write({'image': 'R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='})
+        user.write({'image_1920': 'R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='})
         write_date_after = user.write_date
         self.assertNotEqual(write_date_before, write_date_after)
 

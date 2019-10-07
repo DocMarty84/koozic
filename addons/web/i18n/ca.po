@@ -3,22 +3,21 @@
 # * web
 # 
 # Translators:
-# Marc Tormo i Bochaca <mtbochaca@gmail.com>, 2018
 # Sandra Franch <sandra.franch@upc.edu>, 2018
 # Lluís Dalmau <lluis.dalmau@guifi.net>, 2018
+# Martin Trigaux, 2018
+# Marc Tormo i Bochaca <mtbochaca@gmail.com>, 2018
 # RGB Consulting <odoo@rgbconsulting.com>, 2018
 # Quim - eccit <quim@eccit.com>, 2018
 # Manel Fernandez <manelfera@outlook.com>, 2018
-# Martin Trigaux, 2019
-# M Palau <mpalau@tda.ad>, 2019
 # 
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 12.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-02-13 07:03+0000\n"
+"POT-Creation-Date: 2018-10-08 06:49+0000\n"
 "PO-Revision-Date: 2018-08-24 09:33+0000\n"
-"Last-Translator: M Palau <mpalau@tda.ad>, 2019\n"
+"Last-Translator: Manel Fernandez <manelfera@outlook.com>, 2018\n"
 "Language-Team: Catalan (https://www.transifex.com/odoo/teams/41243/ca/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -182,6 +181,13 @@ msgstr "'%s' no es convertible a data, data i hora ni hora correcta"
 
 #. module: web
 #. openerp-web
+#: code:addons/web/static/src/xml/menu.xml:101
+#, python-format
+msgid "(Enterprise Edition)"
+msgstr ""
+
+#. module: web
+#. openerp-web
 #: code:addons/web/static/src/xml/base.xml:298
 #, python-format
 msgid "(change)"
@@ -217,28 +223,8 @@ msgid "1 record"
 msgstr "1 registre"
 
 #. module: web
-#: model_terms:ir.ui.view,arch_db:web.external_layout_background
-msgid "<i class=\"fa fa-at\" role=\"img\" aria-label=\"Email\" title=\"Email\"/>"
-msgstr ""
-
-#. module: web
-#: model_terms:ir.ui.view,arch_db:web.external_layout_background
-msgid "<i class=\"fa fa-building-o\" role=\"img\" aria-label=\"Fiscal number\"/>"
-msgstr ""
-
-#. module: web
-#: model_terms:ir.ui.view,arch_db:web.external_layout_background
-msgid "<i class=\"fa fa-globe\" role=\"img\" aria-label=\"Website\" title=\"Website\"/>"
-msgstr ""
-
-#. module: web
-#: model_terms:ir.ui.view,arch_db:web.external_layout_background
-msgid "<i class=\"fa fa-phone\" role=\"img\" aria-label=\"Phone\" title=\"Phone\"/>"
-msgstr ""
-
-#. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/chrome/action_manager.js:574
+#: code:addons/web/static/src/js/chrome/action_manager.js:577
 #, python-format
 msgid ""
 "A popup window has been blocked. You may need to change your browser "
@@ -553,14 +539,14 @@ msgstr "Aplicar"
 #: code:addons/web/static/src/js/views/list/list_controller.js:154
 #, python-format
 msgid "Archive"
-msgstr "Arxivar"
+msgstr "Arxiva"
 
 #. module: web
 #. openerp-web
 #: code:addons/web/static/src/xml/kanban.xml:27
 #, python-format
 msgid "Archive All"
-msgstr "Arxivar tot"
+msgstr "Arxiva tot"
 
 #. module: web
 #. openerp-web
@@ -576,8 +562,7 @@ msgstr "Arxivat"
 msgid ""
 "Are you sure that you want to archive all the records from this column?"
 msgstr ""
-"Estàs segur que vols arxivar tots els registres existents a partir d'aquesta"
-" columna?"
+"Estàs segur que vols arxivar totes els registres des d'aquesta columna?"
 
 #. module: web
 #. openerp-web
@@ -620,7 +605,7 @@ msgstr ""
 #: code:addons/web/static/src/xml/base.xml:348
 #, python-format
 msgid "Attachment :"
-msgstr "Adjunt:"
+msgstr "Adjunt :"
 
 #. module: web
 #. openerp-web
@@ -751,7 +736,7 @@ msgstr "La vista calendari no té definit l'atribut 'date_start'."
 #: code:addons/web/static/src/xml/base.xml:179
 #, python-format
 msgid "Cancel"
-msgstr "Cancel·lar"
+msgstr "Cancel·la"
 
 #. module: web
 #. openerp-web
@@ -776,7 +761,7 @@ msgstr ""
 #: code:addons/web/static/src/xml/base.xml:178
 #, python-format
 msgid "Change Password"
-msgstr "Canviar contrasenya"
+msgstr "Canvia contrasenya"
 
 #. module: web
 #. openerp-web
@@ -799,7 +784,7 @@ msgstr ""
 #: code:addons/web/static/src/xml/base.xml:1007
 #, python-format
 msgid "Clear"
-msgstr "Netejar"
+msgstr "Neteja"
 
 #. module: web
 #. openerp-web
@@ -833,14 +818,14 @@ msgstr "Tancat"
 #: code:addons/web/static/src/xml/kanban.xml:54
 #, python-format
 msgid "Column title"
-msgstr "Títol de la columna"
+msgstr "Títol de columna"
 
 #. module: web
 #. openerp-web
 #: code:addons/web/static/src/xml/base.xml:1185
 #, python-format
 msgid "Compare To"
-msgstr "Comparar amb"
+msgstr ""
 
 #. module: web
 #. openerp-web
@@ -906,7 +891,7 @@ msgstr "Control"
 #: code:addons/web/static/src/js/services/crash_manager.js:129
 #, python-format
 msgid "Copied !"
-msgstr "Copiat!"
+msgstr "Copiat !"
 
 #. module: web
 #. openerp-web
@@ -914,7 +899,7 @@ msgstr "Copiat!"
 #: code:addons/web/static/src/xml/base.xml:961
 #, python-format
 msgid "Copy Text"
-msgstr "Copiar el Text"
+msgstr ""
 
 #. module: web
 #. openerp-web
@@ -1095,7 +1080,13 @@ msgstr "Base de dades"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/search/groupby_menu.js:52
+#: code:addons/web/static/src/xml/menu.xml:107
+#, python-format
+msgid "Database expiration:"
+msgstr "Caducitat de la base de dades:"
+
+#. module: web
+#. openerp-web
 #: code:addons/web/static/src/xml/base.xml:558
 #: code:addons/web/static/src/xml/web_calendar.xml:80
 #, python-format
@@ -1649,13 +1640,6 @@ msgid "Group by: %s"
 msgstr "Agrupar per: %s"
 
 #. module: web
-#. openerp-web
-#: code:addons/web/static/src/js/views/graph/graph_renderer.js:214
-#, python-format
-msgid "Grouped"
-msgstr "Agrupat"
-
-#. module: web
 #: model:ir.model,name:web.model_ir_http
 msgid "HTTP Routing"
 msgstr ""
@@ -2129,7 +2113,6 @@ msgstr "Modificadors:"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/search/groupby_menu.js:54
 #: code:addons/web/static/src/xml/base.xml:560
 #: code:addons/web/static/src/xml/web_calendar.xml:82
 #, python-format
@@ -2300,6 +2283,7 @@ msgstr "Objecte:"
 #. module: web
 #. openerp-web
 #: code:addons/web/static/src/js/core/dialog.js:59
+#: code:addons/web/static/src/xml/menu.xml:100
 #, python-format
 msgid "Odoo"
 msgstr "Odoo"
@@ -2640,11 +2624,10 @@ msgstr ""
 #. module: web
 #. openerp-web
 #: code:addons/web/static/src/xml/base.xml:741
-#: code:addons/web/static/src/xml/base.xml:1505
 #: code:addons/web/static/src/xml/web_calendar.xml:75
 #, python-format
 msgid "Previous"
-msgstr "Anterior"
+msgstr ""
 
 #. module: web
 #. openerp-web
@@ -2679,7 +2662,6 @@ msgstr "Morat"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/search/groupby_menu.js:55
 #: code:addons/web/static/src/xml/base.xml:561
 #, python-format
 msgid "Quarter"
@@ -3082,13 +3064,6 @@ msgstr "Alguna cosa terrible ha passat"
 #, python-format
 msgid "Special:"
 msgstr "Especial:"
-
-#. module: web
-#. openerp-web
-#: code:addons/web/static/src/js/views/graph/graph_renderer.js:215
-#, python-format
-msgid "Stacked"
-msgstr ""
 
 #. module: web
 #. openerp-web
@@ -3596,14 +3571,6 @@ msgstr "Error de validació"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/pivot/pivot_model.js:240
-#: code:addons/web/static/src/js/views/pivot/pivot_renderer.js:174
-#, python-format
-msgid "Variation"
-msgstr ""
-
-#. module: web
-#. openerp-web
 #: code:addons/web/static/src/js/tools/debug_manager.js:287
 #: code:addons/web/static/src/xml/base.xml:258
 #, python-format
@@ -3660,7 +3627,6 @@ msgstr "Web:"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/search/groupby_menu.js:53
 #: code:addons/web/static/src/xml/base.xml:559
 #: code:addons/web/static/src/xml/web_calendar.xml:81
 #, python-format
@@ -3717,7 +3683,6 @@ msgstr "XML ID:"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/search/groupby_menu.js:56
 #: code:addons/web/static/src/xml/base.xml:562
 #, python-format
 msgid "Year"
@@ -3946,24 +3911,10 @@ msgstr "és posterior"
 
 #. module: web
 #. openerp-web
-#: code:addons/web/static/src/js/views/search/search_filters.js:190
-#, python-format
-msgid "is after or equal to"
-msgstr ""
-
-#. module: web
-#. openerp-web
 #: code:addons/web/static/src/js/views/search/search_filters.js:189
 #, python-format
 msgid "is before"
 msgstr "és anterior"
-
-#. module: web
-#. openerp-web
-#: code:addons/web/static/src/js/views/search/search_filters.js:191
-#, python-format
-msgid "is before or equal to"
-msgstr ""
 
 #. module: web
 #. openerp-web

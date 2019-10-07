@@ -8,6 +8,7 @@ odoo.define('web.PivotView', function (require) {
  */
 
 var AbstractView = require('web.AbstractView');
+var config = require('web.config');
 var core = require('web.core');
 var PivotModel = require('web.PivotModel');
 var PivotController = require('web.PivotController');
@@ -16,19 +17,20 @@ var PivotRenderer = require('web.PivotRenderer');
 var _t = core._t;
 var _lt = core._lt;
 
-var GROUPABLE_TYPES =
-    ['many2one', 'char', 'boolean', 'selection', 'date', 'datetime'];
+var controlPanelViewParameters = require('web.controlPanelViewParameters');
+var GROUPABLE_TYPES = controlPanelViewParameters.GROUPABLE_TYPES;
 
 var PivotView = AbstractView.extend({
     display_name: _lt('Pivot'),
     icon: 'fa-table',
-    config: {
+    config: _.extend({}, AbstractView.prototype.config,{
         Model: PivotModel,
         Controller: PivotController,
         Renderer: PivotRenderer,
-    },
+    }),
     viewType: 'pivot',
-    enableTimeRangeMenu: 'true',
+    searchMenuTypes: ['filter', 'groupBy', 'timeRange', 'favorite'],
+
     /**
      * @override
      * @param {Object} params
@@ -64,12 +66,9 @@ var PivotView = AbstractView.extend({
             if (field.attrs.interval) {
                 name += ':' + field.attrs.interval;
             }
-
             if (field.attrs.widget) {
                 widgets[name] = field.attrs.widget;
             }
-
-
             if (field.attrs.invisible && py.eval(field.attrs.invisible)) {
                 delete measures[name];
                 return;
@@ -81,15 +80,12 @@ var PivotView = AbstractView.extend({
             // the measure should be allowed.  However, be careful if you define
             // a measure in your pivot view: non stored functional fields will
             // probably not work (their aggregate will always be 0).
-
-            if (field.attrs.type === 'measure' && !(field.attrs.name in measures)) {
-                measures[field.attrs.name] = self.fields[field.attrs.name];
+            if (field.attrs.type === 'measure' && !(name in measures)) {
+                measures[name] = self.fields[name];
             }
-
             if (field.attrs.string) {
               measures[name].string = field.attrs.string;
             }
-
             if (field.attrs.type === 'measure' || 'operator' in field.attrs) {
                 activeMeasures.push(name);
                 measures[name] = self.fields[name];
@@ -110,19 +106,22 @@ var PivotView = AbstractView.extend({
         this.loadParams.rowGroupBys = rowGroupBys;
         this.loadParams.fields = this.fields;
         this.loadParams.default_order = params.default_order || this.arch.attrs.default_order;
+        if (config.device.isMobile) {
+            this.loadParams.colGroupBys = [];
+        }
+
 
         this.rendererParams.widgets = widgets;
+        this.rendererParams.enableLinking = !this.arch.attrs.disable_linking;
 
         this.controllerParams.title = params.title || this.arch.attrs.string || _t("Untitled");
-        this.controllerParams.enableLinking = !this.arch.attrs.disable_linking;
         this.controllerParams.measures = measures;
         this.controllerParams.groupableFields = groupableFields;
         // retrieve form and list view ids from the action to open those views
         // when a data cell of the pivot view is clicked
-
         this.controllerParams.views = [
-            _findView(params.action && params.action.views, 'list'),
-            _findView(params.action && params.action.views, 'form'),
+            _findView(params.actionViews, 'list'),
+            _findView(params.actionViews, 'form'),
         ];
         function _findView(views, viewType) {
             var view = _.find(views, function (view) {

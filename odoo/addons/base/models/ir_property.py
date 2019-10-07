@@ -3,7 +3,7 @@
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
-from odoo.tools import pycompat, ormcache
+from odoo.tools import ormcache
 
 TYPE2FIELD = {
     'char': 'value_text',
@@ -42,7 +42,7 @@ class Property(models.Model):
     value_float = fields.Float()
     value_integer = fields.Integer()
     value_text = fields.Text()  # will contain (char, text)
-    value_binary = fields.Binary()
+    value_binary = fields.Binary(attachment=False)
     value_reference = fields.Char()
     value_datetime = fields.Datetime()
     type = fields.Selection([('char', 'Char'),
@@ -60,7 +60,6 @@ class Property(models.Model):
                             default='many2one',
                             index=True)
 
-    @api.multi
     def _update_values(self, values):
         if 'value' not in values:
             return values
@@ -84,7 +83,7 @@ class Property(models.Model):
                 value = False
             elif isinstance(value, models.BaseModel):
                 value = '%s,%d' % (value._name, value.id)
-            elif isinstance(value, pycompat.integer_types):
+            elif isinstance(value, int):
                 field_id = values.get('fields_id')
                 if not field_id:
                     if not prop:
@@ -98,7 +97,6 @@ class Property(models.Model):
         values[field] = value
         return values
 
-    @api.multi
     def write(self, values):
         # if any of the records we're writing on has a res_id=False *or*
         # we're writing a res_id=False on any record
@@ -112,6 +110,11 @@ class Property(models.Model):
             )
         r = super(Property, self).write(self._update_values(values))
         if default_set:
+            # DLE P44: test `test_27_company_dependent`
+            # Easy solution, need to flush write when changing a property.
+            # Maybe it would be better to be able to compute all impacted cache value and update those instead
+            # Then clear_caches must be removed as well.
+            self.flush()
             self.clear_caches()
         return r
 
@@ -121,10 +124,11 @@ class Property(models.Model):
         created_default = any(not v.get('res_id') for v in vals_list)
         r = super(Property, self).create(vals_list)
         if created_default:
+            # DLE P44: test `test_27_company_dependent`
+            self.flush()
             self.clear_caches()
         return r
 
-    @api.multi
     def unlink(self):
         default_deleted = False
         if self._ids:
@@ -138,7 +142,6 @@ class Property(models.Model):
             self.clear_caches()
         return r
 
-    @api.multi
     def get_by_record(self):
         self.ensure_one()
         if self.type in ('char', 'text', 'selection'):
@@ -178,10 +181,8 @@ class Property(models.Model):
         return False
 
     # only cache Property.get(res_id=False) as that's
-    # sub-optimally, we can only call _company_default_get without a field
-    # unless we want to create a more complete helper which does the
-    # returning-a-company-id-from-a-model-and-name
-    COMPANY_KEY = "self.env.context.get('force_company') or self.env['res.company']._company_default_get(model).id"
+    # sub-optimally.
+    COMPANY_KEY = "self.env.context.get('force_company') or self.env.company.id"
     @ormcache(COMPANY_KEY, 'name', 'model')
     def _get_default_property(self, name, model):
         prop = self._get_property(name, model, res_id=False)
@@ -205,7 +206,7 @@ class Property(models.Model):
         res = self._cr.fetchone()
         if not res:
             return None
-        company_id = self._context.get('force_company') or self.env['res.company']._company_default_get(model, res[0]).id
+        company_id = self._context.get('force_company') or self.env.company.id
         return [('fields_id', '=', res[0]), ('company_id', 'in', [company_id, False])]
 
     @api.model
@@ -221,7 +222,7 @@ class Property(models.Model):
         field_id = self.env['ir.model.fields']._get(model, name).id
         company_id = (
             self._context.get('force_company')
-            or self.env['res.company']._company_default_get(model, field_id).id
+            or self.env.company.id
         )
 
         if field.type == 'many2one':
@@ -301,7 +302,7 @@ class Property(models.Model):
         # retrieve the properties corresponding to the given record ids
         self._cr.execute("SELECT id FROM ir_model_fields WHERE name=%s AND model=%s", (name, model))
         field_id = self._cr.fetchone()[0]
-        company_id = self.env.context.get('force_company') or self.env['res.company']._company_default_get(model, field_id).id
+        company_id = self.env.context.get('force_company') or self.env.company.id
         refs = {('%s,%s' % (model, id)): id for id in values}
         props = self.search([
             ('fields_id', '=', field_id),

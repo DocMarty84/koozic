@@ -56,10 +56,6 @@ var QuickCreateFormModel = BasicModel.extend({
 });
 
 var QuickCreateFormController = FormController.extend({
-    custom_events: _.extend({}, FormController.prototype.custom_events, {
-        env_updated: '_onEnvUpdated',
-    }),
-
     //--------------------------------------------------------------------------
     // Public
     //--------------------------------------------------------------------------
@@ -75,7 +71,7 @@ var QuickCreateFormController = FormController.extend({
      */
     commitChanges: function () {
         var mutexDef = this.mutex.getUnlockedDef();
-        return $.when(mutexDef, this.renderer.commitChanges(this.handle));
+        return Promise.all([mutexDef, this.renderer.commitChanges(this.handle)]);
     },
     /**
      * @returns {Object} the changes done on the current record
@@ -83,23 +79,10 @@ var QuickCreateFormController = FormController.extend({
     getChanges: function () {
         return this.model.getChanges(this.handle);
     },
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
-    /**
-     * Stops the propagation of the 'env_updated' event to prevent interferences
-     * with the kanban controller.
-     *
-     * @private
-     */
-    _onEnvUpdated: function (ev) {
-        ev.stopPropagation();
-    },
 });
 
 var QuickCreateFormView = FormView.extend({
+    withControlPanel: false,
     config: _.extend({}, FormView.prototype.config, {
         Model: QuickCreateFormModel,
         Renderer: QuickCreateFormRenderer,

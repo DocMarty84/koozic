@@ -26,7 +26,25 @@ class TestACL(TransactionCase):
     def test_field_visibility_restriction(self):
         """Check that model-level ``groups`` parameter effectively restricts access to that
            field for users who do not belong to one of the explicitly allowed groups"""
-        currency = self.env['res.currency'].sudo(self.demo_user)
+        currency = self.env['res.currency'].with_user(self.demo_user)
+
+        # Add a view that adds a label for the field we are going to check
+        extension = self.env["ir.ui.view"].create({
+            "name": "Add separate label for decimal_places",
+            "model": "res.currency",
+            "inherit_id": self.env.ref("base.view_currency_form").id,
+            "arch": """
+                <data>
+                    <field name="decimal_places" position="attributes">
+                        <attribute name="nolabel">1</attribute>
+                    </field>
+                    <field name="decimal_places" position="before">
+                        <label for="decimal_places"/>
+                    </field>
+                </data>
+            """,
+        })
+        currency = currency.with_context(check_view_ids=extension.ids)
 
         # Verify the test environment first
         original_fields = currency.fields_get([])
@@ -35,8 +53,10 @@ class TestACL(TransactionCase):
         has_group_system = self.demo_user.has_group(GROUP_SYSTEM)
         self.assertFalse(has_group_system, "`demo` user should not belong to the restricted group before the test")
         self.assertIn('decimal_places', original_fields, "'decimal_places' field must be properly visible before the test")
-        self.assertNotEquals(view_arch.xpath("//field[@name='decimal_places']"), [],
+        self.assertNotEquals(view_arch.xpath("//field[@name='decimal_places'][@nolabel='1']"), [],
                              "Field 'decimal_places' must be found in view definition before the test")
+        self.assertNotEquals(view_arch.xpath("//label[@for='decimal_places']"), [],
+                             "Label for 'decimal_places' must be found in view definition before the test")
 
         # restrict access to the field and check it's gone
         self._set_field_groups(currency, 'decimal_places', GROUP_SYSTEM)
@@ -47,6 +67,8 @@ class TestACL(TransactionCase):
         self.assertNotIn('decimal_places', fields, "'decimal_places' field should be gone")
         self.assertEquals(view_arch.xpath("//field[@name='decimal_places']"), [],
                           "Field 'decimal_places' must not be found in view definition")
+        self.assertEquals(view_arch.xpath("//label[@for='decimal_places']"), [],
+                          "Label for 'decimal_places' must not be found in view definition")
 
         # Make demo user a member of the restricted group and check that the field is back
         self.erp_system_group.users += self.demo_user
@@ -58,11 +80,13 @@ class TestACL(TransactionCase):
         self.assertIn('decimal_places', fields, "'decimal_places' field must be properly visible again")
         self.assertNotEquals(view_arch.xpath("//field[@name='decimal_places']"), [],
                              "Field 'decimal_places' must be found in view definition again")
+        self.assertNotEquals(view_arch.xpath("//label[@for='decimal_places']"), [],
+                             "Label for 'decimal_places' must be found in view definition again")
 
     @mute_logger('odoo.models')
     def test_field_crud_restriction(self):
         "Read/Write RPC access to restricted field should be forbidden"
-        partner = self.env['res.partner'].browse(1).sudo(self.demo_user)
+        partner = self.env['res.partner'].browse(1).with_user(self.demo_user)
 
         # Verify the test environment first
         has_group_system = self.demo_user.has_group(GROUP_SYSTEM)
@@ -88,7 +112,7 @@ class TestACL(TransactionCase):
     @mute_logger('odoo.models')
     def test_fields_browse_restriction(self):
         """Test access to records having restricted fields"""
-        partner = self.env['res.partner'].sudo(self.demo_user)
+        partner = self.env['res.partner'].with_user(self.demo_user)
         self._set_field_groups(partner, 'email', GROUP_SYSTEM)
 
         # accessing fields must no raise exceptions...
@@ -102,7 +126,7 @@ class TestACL(TransactionCase):
     def test_view_create_edit_button_invisibility(self):
         """ Test form view Create, Edit, Delete button visibility based on access right of model"""
         methods = ['create', 'edit', 'delete']
-        company = self.env['res.company'].sudo(self.demo_user)
+        company = self.env['res.company'].with_user(self.demo_user)
         company_view = company.fields_view_get(False, 'form')
         view_arch = etree.fromstring(company_view['arch'])
         for method in methods:
@@ -112,7 +136,7 @@ class TestACL(TransactionCase):
         """ Test form view Create, Edit, Delete button visibility based on access right of model"""
         self.erp_system_group.users += self.demo_user
         methods = ['create', 'edit', 'delete']
-        company = self.env['res.company'].sudo(self.demo_user)
+        company = self.env['res.company'].with_user(self.demo_user)
         company_view = company.fields_view_get(False, 'form')
         view_arch = etree.fromstring(company_view['arch'])
         for method in methods:
@@ -121,7 +145,7 @@ class TestACL(TransactionCase):
     def test_m2o_field_create_edit_invisibility(self):
         """ Test many2one field Create and Edit option visibility based on access rights of relation field""" 
         methods = ['create', 'write']
-        company = self.env['res.company'].sudo(self.demo_user)
+        company = self.env['res.company'].with_user(self.demo_user)
         company_view = company.fields_view_get(False, 'form')
         view_arch = etree.fromstring(company_view['arch'])
         field_node = view_arch.xpath("//field[@name='currency_id']")
@@ -133,7 +157,7 @@ class TestACL(TransactionCase):
         """ Test many2one field Create and Edit option visibility based on access rights of relation field""" 
         self.erp_system_group.users += self.demo_user
         methods = ['create', 'write']
-        company = self.env['res.company'].sudo(self.demo_user)
+        company = self.env['res.company'].with_user(self.demo_user)
         company_view = company.fields_view_get(False, 'form')
         view_arch = etree.fromstring(company_view['arch'])
         field_node = view_arch.xpath("//field[@name='currency_id']")
@@ -158,7 +182,7 @@ class TestIrRule(TransactionCase):
         })
 
         # read as demo user the partners (one blank domain)
-        partners_demo = self.env['res.partner'].sudo(user_demo)
+        partners_demo = self.env['res.partner'].with_user(user_demo)
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
@@ -214,7 +238,7 @@ class TestIrRule(TransactionCase):
         # modify the global rule on res_company which triggers a recursive check
         # of the rules on company
         global_rule = self.env.ref('base.res_company_rule_employee')
-        global_rule.domain_force = "[('id','child_of',[user.company_id.id])]"
+        global_rule.domain_force = "[('id','in', company_ids)]"
 
         # read as demo user (exercising the global company rule)
         partners = partners_demo.search([])

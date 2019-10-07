@@ -146,6 +146,7 @@ var Tip = Widget.extend({
     },
     _reposition: function () {
         if (this.tip_opened) return;
+        if (!this.$el) return;
         this.$el.removeClass("o_animated");
 
         // Reverse left/right position if direction is right to left
@@ -297,13 +298,15 @@ var Tip = Widget.extend({
 });
 
 Tip.getConsumeEventType = function ($element) {
-    if ($element.is("textarea") || $element.filter("input").is(function () {
+    if ($element.hasClass('o_field_many2one') || $element.hasClass('o_field_many2manytags')) {
+        return 'autocompleteselect';
+    } else if ($element.is("textarea") || $element.filter("input").is(function () {
         var type = $(this).attr("type");
         return !type || !!type.match(/^(email|number|password|search|tel|text|url)$/);
     })) {
         return "input";
     }
-    return "mousedown";
+    return "click";
 };
 
 return Tip;

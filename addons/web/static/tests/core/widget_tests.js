@@ -2,8 +2,8 @@ odoo.define('web.widget_tests', function (require) {
 "use strict";
 
 var AjaxService = require('web.AjaxService');
-var concurrency = require('web.concurrency');
 var core = require('web.core');
+var Dialog = require('web.Dialog');
 var QWeb = require('web.QWeb');
 var Widget = require('web.Widget');
 var testUtils = require('web.test_utils');
@@ -86,8 +86,6 @@ QUnit.module('core', {}, function () {
         w.destroy();
     });
 
-
-
     QUnit.test('renderElement, no template, default', function (assert) {
         assert.expect(7);
 
@@ -129,7 +127,7 @@ QUnit.module('core', {}, function () {
         widget.renderElement();
 
         assert.strictEqual(widget.el.attributes.length, 1, "should have one attribute");
-        assert.strictEqual(widget.$el.attr('id'), 'foo', "should have generated the id attribute");
+        assert.hasAttrValue(widget.$el, 'id', 'foo', "should have generated the id attribute");
         assert.strictEqual(widget.el.id, 'foo', "should also be available via property");
         widget.destroy();
     });
@@ -143,7 +141,7 @@ QUnit.module('core', {}, function () {
         widget.renderElement();
 
         assert.strictEqual(widget.el.className, 'oe_some_class', "should have the right property");
-        assert.strictEqual(widget.$el.attr('class'), 'oe_some_class', "should have the right attribute");
+        assert.hasAttrValue(widget.$el, 'class', 'oe_some_class', "should have the right attribute");
         widget.destroy();
     });
 
@@ -165,16 +163,16 @@ QUnit.module('core', {}, function () {
         assert.strictEqual(widget.el.attributes.length, 5, "should have all the specified attributes");
 
         assert.strictEqual(widget.el.id, 'some_id');
-        assert.strictEqual(widget.$el.attr('id'), 'some_id');
+        assert.hasAttrValue(widget.$el, 'id', 'some_id');
 
         assert.strictEqual(widget.el.className, 'some_class');
-        assert.strictEqual(widget.$el.attr('class'), 'some_class');
+        assert.hasAttrValue(widget.$el, 'class', 'some_class');
 
-        assert.strictEqual(widget.$el.attr('data-foo'), 'data attribute');
+        assert.hasAttrValue(widget.$el, 'data-foo', 'data attribute');
         assert.strictEqual(widget.$el.data('foo'), 'data attribute');
 
-        assert.strictEqual(widget.$el.attr('clark'), 'gable');
-        assert.strictEqual(widget.$el.attr('spoiler'), 'snape kills dumbledore');
+        assert.hasAttrValue(widget.$el, 'clark', 'gable');
+        assert.hasAttrValue(widget.$el, 'spoiler', 'snape kills dumbledore');
         widget.destroy();
     });
 
@@ -206,7 +204,7 @@ QUnit.module('core', {}, function () {
         widget.destroy();
     });
 
-    QUnit.test('repeated', function (assert) {
+    QUnit.test('repeated', async function (assert) {
         assert.expect(4);
         var $fix = $( "#qunit-fixture");
 
@@ -222,17 +220,16 @@ QUnit.module('core', {}, function () {
         }))();
         widget.value = 42;
 
-        return widget.appendTo($fix)
-            .done(function () {
+        await widget.appendTo($fix)
+            .then(function () {
                 assert.strictEqual($fix.find('p').text(), '42', "DOM fixture should contain initial value");
                 assert.strictEqual(widget.$el.text(), '42', "should set initial value");
                 widget.value = 36;
                 widget.renderElement();
                 assert.strictEqual($fix.find('p').text(), '36', "DOM fixture should use new value");
                 assert.strictEqual(widget.$el.text(), '36', "should set new value");
-            }).always(function () {
-                widget.destroy();
             });
+        widget.destroy();
     });
 
 
@@ -274,7 +271,7 @@ QUnit.module('core', {}, function () {
     });
 
 
-    QUnit.test('delegate', function (assert) {
+    QUnit.test('delegate', async function (assert) {
         assert.expect(5);
 
         var a = [];
@@ -292,9 +289,9 @@ QUnit.module('core', {}, function () {
         }))();
         widget.renderElement();
 
-        widget.$el.click();
-        widget.$('li:eq(3)').click();
-        widget.$('input:last').val('foo').change();
+        await testUtils.dom.click(widget.$el, {allowInvisible: true});
+        await testUtils.dom.click(widget.$('li:eq(3)'), {allowInvisible: true});
+        await testUtils.fields.editAndTrigger(widget.$('input:last'), 'foo', 'change');
 
         for(var i=0; i<3; ++i) {
             assert.ok(a[i], "should pass test " + i);
@@ -302,7 +299,7 @@ QUnit.module('core', {}, function () {
         widget.destroy();
     });
 
-    QUnit.test('undelegate', function (assert) {
+    QUnit.test('undelegate', async function (assert) {
         assert.expect(4);
 
         var clicked = false;
@@ -316,13 +313,13 @@ QUnit.module('core', {}, function () {
         widget.renderElement();
         widget.$el.on('click', 'li', function () { newclicked = true; });
 
-        widget.$('li').click();
+        await testUtils.dom.clickFirst(widget.$('li'), {allowInvisible: true});
         assert.ok(clicked, "should trigger bound events");
         assert.ok(newclicked, "should trigger bound events");
 
         clicked = newclicked = false;
         widget._undelegateEvents();
-        widget.$('li').click();
+        await testUtils.dom.clickFirst(widget.$('li'), {allowInvisible: true});
         assert.ok(!clicked, "undelegate should unbind events delegated");
         assert.ok(newclicked, "undelegate should only unbind events it created");
         widget.destroy();
@@ -330,50 +327,54 @@ QUnit.module('core', {}, function () {
 
     QUnit.module('Widget, and async stuff');
 
-    QUnit.test("alive(alive)", function (assert) {
+    QUnit.test("alive(alive)", async function (assert) {
         assert.expect(1);
 
         var widget = new (Widget.extend({}));
 
-        return concurrency.asyncWhen(widget.start())
-            .then(function () { return widget.alive(concurrency.asyncWhen()); })
-            .then(function () { assert.ok(true); })
-            .always(function () { widget.destroy(); });
+        await widget.start()
+            .then(function () {return widget.alive(Promise.resolve()) ;})
+            .then(function () { assert.ok(true); });
+
+        widget.destroy();
     });
 
     QUnit.test("alive(dead)", function (assert) {
         assert.expect(1);
         var widget = new (Widget.extend({}));
 
-        return $.Deferred(function (d) {
-            concurrency.asyncWhen(widget.start())
+        return new Promise(function (resolve, reject) {
+            widget.start()
             .then(function () {
                 // destroy widget
                 widget.destroy();
-                var promise = concurrency.asyncWhen();
+                var promise = Promise.resolve();
                 // leave time for alive() to do its stuff
                 promise.then(function () {
-                    return concurrency.asyncWhen();
+                    return Promise.resolve();
                 }).then(function () {
                     assert.ok(true);
-                    d.resolve();
+                    resolve();
                 });
                 // ensure that widget.alive() refuses to resolve or reject
                 return widget.alive(promise);
-            }).always(function () {
-                d.reject();
+            }).then(function () {
+                reject();
+                assert.ok(false, "alive() should not terminate by default");
+            }).catch(function() {
+                reject();
                 assert.ok(false, "alive() should not terminate by default");
             });
         });
     });
 
-    QUnit.test("alive(alive, true)", function (assert) {
+    QUnit.test("alive(alive, true)", async function (assert) {
         assert.expect(1);
         var widget = new (Widget.extend({}));
-        return concurrency.asyncWhen(widget.start())
-        .then(function () { return widget.alive(concurrency.asyncWhen(), true) })
-        .then(function () { assert.ok(true); })
-        .always(function () { widget.destroy(); });
+        await widget.start()
+            .then(function () { return widget.alive(Promise.resolve(), true); })
+            .then(function () { assert.ok(true); });
+        widget.destroy();
     });
 
     QUnit.test("alive(dead, true)", function (assert) {
@@ -382,11 +383,11 @@ QUnit.module('core', {}, function () {
 
         var widget = new (Widget.extend({}));
 
-        concurrency.asyncWhen(widget.start())
+        widget.start()
         .then(function () {
             // destroy widget
             widget.destroy();
-            return widget.alive(concurrency.asyncWhen(), true);
+            return widget.alive(Promise.resolve(), true);
         }).then(function () {
             assert.ok(false, "alive(p, true) should fail its promise");
             done();
@@ -396,15 +397,15 @@ QUnit.module('core', {}, function () {
         });
     });
 
-    QUnit.test("calling _rpc on destroyed widgets", function (assert) {
+    QUnit.test("calling _rpc on destroyed widgets", async function (assert) {
         assert.expect(3);
 
         var def;
         var parent = new Widget();
-        testUtils.addMockEnvironment(parent, {
+        testUtils.mock.addMockEnvironment(parent, {
             session: {
                 rpc: function () {
-                    def = $.Deferred();
+                    def = testUtils.makeTestPromise();
                     def.abort = def.reject;
                     return def;
                 },
@@ -419,23 +420,30 @@ QUnit.module('core', {}, function () {
             assert.ok(true, "The ajax call should be resolve");
         });
         def.resolve();
+        await testUtils.nextMicrotaskTick();
         def = null;
 
-        widget._rpc({route: '/a/route'}).always(function () {
+        widget._rpc({route: '/a/route'}).then(function () {
             throw Error("Calling _rpc on a destroyed widget should return a " +
-                "deferred that is never resolved nor rejected");
+            "promise that remains pending forever");
+        }).catch(function () {
+            throw Error("Calling _rpc on a destroyed widget should return a " +
+            "promise that remains pending forever");
         });
         widget.destroy();
         def.resolve();
+        await testUtils.nextMicrotaskTick();
         def = null;
 
-        widget._rpc({route: '/a/route'}).always(function () {
+        widget._rpc({route: '/a/route'}).then(function () {
             throw Error("Calling _rpc on a destroyed widget should return a " +
-                "deferred that is never resolved nor rejected");
+                "promise that remains pending forever");
+        }).catch(function () {
+            throw Error("Calling _rpc on a destroyed widget should return a " +
+            "promise that remains pending forever");
         });
-        assert.ok(!def,
-            "The trigger_up is not performed and the call returns a deferred "+
-                "never resolved nor rejected");
+        assert.ok(!def, "trigger_up is not performed and the call returns a " +
+            "promise that remains pending forever");
 
         assert.ok(true,
             "there should be no crash when calling _rpc on a destroyed widget");
@@ -444,12 +452,12 @@ QUnit.module('core', {}, function () {
 
     QUnit.test('start is not called when widget is destroyed', function (assert) {
         assert.expect(0);
-        var slowWillStartDef = $.Deferred();
+        var slowWillStartPromise = testUtils.makeTestPromise();
         var $fix = $( "#qunit-fixture");
 
         var widget = new (Widget.extend({
             willStart: function () {
-                return slowWillStartDef;
+                return slowWillStartPromise;
             },
             start: function () {
                 throw new Error('Should not call start method');
@@ -458,9 +466,41 @@ QUnit.module('core', {}, function () {
 
         widget.appendTo($fix);
         widget.destroy();
-        slowWillStartDef.resolve();
+        slowWillStartPromise.resolve();
     });
 
+    QUnit.test("don't destroy twice widget's children", function (assert) {
+        assert.expect(2);
+
+        var parent = new Widget();
+        var child = new (Widget.extend({
+            destroy: function () {
+                assert.step('destroy');
+            }
+        }))(parent);
+
+        parent.destroy();
+        assert.verifySteps(['destroy'], "child should have been detroyed only once");
+    });
+
+
+    QUnit.module('Widgets, Dialog');
+
+    QUnit.test("don't close dialog on backdrop click", async function (assert) {
+        assert.expect(3);
+
+        var dialog = new Dialog(null);
+        dialog.open();
+        await dialog.opened();
+
+        assert.strictEqual($('.modal.show').length, 1, "a dialog should have opened");
+        var $backdrop = $('.modal-backdrop');
+        assert.strictEqual($backdrop.length, 1, "the dialog should have a modal backdrop");
+        testUtils.dom.click('.modal.show'); // Click on backdrop is in fact a direct click on the .modal element
+        assert.strictEqual($('.modal.show').length, 1, "the dialog should still be opened");
+
+        dialog.close();
+    });
 });
 
 });

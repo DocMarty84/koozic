@@ -10,7 +10,7 @@ from odoo.tests.common import TransactionCase
 from odoo import tools
 from odoo.modules import get_modules, get_module_path
 
-MAX_ES_VERSION = 'es5'
+MAX_ES_VERSION = 'es8'
 
 _logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class TestECMAScriptVersion(TransactionCase):
         files_to_check = []
         for p in mod_paths:
             for dp, _, file_names in os.walk(p):
-                if 'static/test' in dp:
+                if 'static/test' in dp or "static/src/tests" in dp:
                     continue
                 for fn in file_names:
                     fullpath_name = os.path.join(dp, fn)
@@ -45,4 +45,4 @@ class TestECMAScriptVersion(TransactionCase):
         cmd = [es_check, MAX_ES_VERSION] + files_to_check
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = process.communicate()
-        self.assertEqual(process.returncode, 0, msg=out)
+        self.assertEqual(process.returncode, 0, msg=out.decode())

@@ -16,27 +16,23 @@ var GraphRenderer = require('web.GraphRenderer');
 var _t = core._t;
 var _lt = core._lt;
 
-var GROUPABLE_TYPES =
-    ['many2one', 'char', 'boolean', 'selection', 'date', 'datetime'];
+var controlPanelViewParameters = require('web.controlPanelViewParameters');
+var GROUPABLE_TYPES = controlPanelViewParameters.GROUPABLE_TYPES;
 
 var GraphView = AbstractView.extend({
     display_name: _lt('Graph'),
     icon: 'fa-bar-chart',
-    cssLibs: [
-        '/web/static/lib/nvd3/nv.d3.css'
-    ],
     jsLibs: [
-        '/web/static/lib/nvd3/d3.v3.js',
-        '/web/static/lib/nvd3/nv.d3.js',
-        '/web/static/src/js/libs/nvd3.js'
+        '/web/static/lib/Chart/Chart.js',
     ],
-    config: {
+    config: _.extend({}, AbstractView.prototype.config, {
         Model: GraphModel,
         Controller: Controller,
         Renderer: GraphRenderer,
-    },
+    }),
     viewType: 'graph',
-    enableTimeRangeMenu: 'true',
+    searchMenuTypes: ['filter', 'groupBy', 'timeRange', 'favorite'],
+
     /**
      * @override
      */
@@ -48,14 +44,15 @@ var GraphView = AbstractView.extend({
         var groupBys = [];
         var measures = {__count__: {string: _t("Count"), type: "integer"}};
         var groupableFields = {};
-        var intervalMapping = {};
         this.fields.__count__ = {string: _t("Count"), type: "integer"};
 
         this.arch.children.forEach(function (field) {
             var fieldName = field.attrs.name;
+            if (fieldName === "id") {
+                return;
+            }
             var interval = field.attrs.interval;
             if (interval) {
-                intervalMapping[fieldName] = interval;
                 fieldName = fieldName + ':' + interval;
             }
             if (field.attrs.type === 'measure') {
@@ -80,15 +77,15 @@ var GraphView = AbstractView.extend({
 
         this.controllerParams.measures = measures;
         this.controllerParams.groupableFields = groupableFields;
-        this.rendererParams.stacked = this.arch.attrs.stacked !== "False";
+        this.rendererParams.fields = this.fields;
         this.rendererParams.title = this.arch.attrs.title; // TODO: use attrs.string instead
 
         this.loadParams.mode = this.arch.attrs.type || 'bar';
         this.loadParams.measure = measure || '__count__';
-        this.loadParams.groupBys = groupBys || [];
-        this.loadParams.intervalMapping = intervalMapping;
+        this.loadParams.groupBys = groupBys;
         this.loadParams.fields = this.fields;
         this.loadParams.comparisonDomain = params.comparisonDomain;
+        this.loadParams.stacked = this.arch.attrs.stacked !== "False";
     },
 });
 

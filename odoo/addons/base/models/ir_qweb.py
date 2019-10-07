@@ -11,10 +11,9 @@ from lxml import html
 from lxml import etree
 from werkzeug import urls
 
-from odoo.tools import pycompat
-
 from odoo import api, models, tools
 from odoo.tools.safe_eval import assert_valid_codeobj, _BUILTINS, _SAFE_OPCODES
+from odoo.tools.misc import get_lang
 from odoo.http import request
 from odoo.modules.module import get_resource_path
 
@@ -114,7 +113,7 @@ class IrQWeb(models.AbstractModel, QWeb):
         return super(IrQWeb, self).compile(id_or_xml_id, options=options)
 
     def load(self, name, options):
-        lang = options.get('lang', 'en_US')
+        lang = options.get('lang', get_lang(self.env).code)
         env = self.env
         if lang != env.context.get('lang'):
             env = env(context=dict(env.context, lang=lang))
@@ -130,12 +129,12 @@ class IrQWeb(models.AbstractModel, QWeb):
             view = self.env['ir.ui.view'].browse(view_id)
             return view.inherit_id is not None
 
-        if isinstance(name, pycompat.integer_types) or is_child_view(name):
-            for node in etree.fromstring(template):
+        if isinstance(name, int) or is_child_view(name):
+            view = etree.fromstring(template)
+            for node in view:
                 if node.get('t-name'):
                     node.set('t-name', str(name))
-                    return node.getparent()
-            return None  # trigger "template not found" in QWeb
+            return view
         else:
             return template
 
@@ -150,7 +149,7 @@ class IrQWeb(models.AbstractModel, QWeb):
     # compile directives
 
     def _compile_directive_lang(self, el, options):
-        lang = el.attrib.pop('t-lang', 'en_US')
+        lang = el.attrib.pop('t-lang', get_lang(self.env).code)
         if el.get('t-call-options'):
             el.set('t-call-options', el.get('t-call-options')[0:-1] + u', "lang": %s}' % lang)
         else:
@@ -162,7 +161,7 @@ class IrQWeb(models.AbstractModel, QWeb):
         if len(el):
             raise SyntaxError("t-call-assets cannot contain children nodes")
 
-        # nodes = self._get_asset(xmlid, options, css=css, js=js, debug=values.get('debug'), async=async, values=values)
+        # nodes = self._get_asset_nodes(xmlid, options, css=css, js=js, debug=values.get('debug'), async=async, values=values)
         #
         # for index, (tagName, t_attrs, content) in enumerate(nodes):
         #     if index:
@@ -217,6 +216,8 @@ class IrQWeb(models.AbstractModel, QWeb):
                             keywords=[], starargs=None, kwargs=None
                         )),
                         ast.keyword('async_load', self._get_attr_bool(el.get('async_load', False))),
+                        ast.keyword('defer_load', self._get_attr_bool(el.get('defer_load', False))),
+                        ast.keyword('lazy_load', self._get_attr_bool(el.get('lazy_load', False))),
                         ast.keyword('values', ast.Name(id='values', ctx=ast.Load())),
                     ],
                     starargs=None, kwargs=None
@@ -282,30 +283,24 @@ class IrQWeb(models.AbstractModel, QWeb):
 
     # method called by computing code
 
-    def get_asset_bundle(self, xmlid, files, remains=None, env=None):
-        return AssetsBundle(xmlid, files, remains=remains, env=env)
-
-    # compatibility to remove after v11 - DEPRECATED
-    @tools.conditional(
-        'xml' not in tools.config['dev_mode'],
-        tools.ormcache_context('xmlid', 'options.get("lang", "en_US")', 'css', 'js', 'debug', 'async_load', keys=("website_id",)),
-    )
-    def _get_asset(self, xmlid, options, css=True, js=True, debug=False, async_load=False, values=None):
-        files, remains = self._get_asset_content(xmlid, options)
-        asset = self.get_asset_bundle(xmlid, files, remains, env=self.env)
-        return asset.to_html(css=css, js=js, debug=debug, async_load=async_load, url_for=(values or {}).get('url_for', lambda url: url))
+    def get_asset_bundle(self, xmlid, files, env=None):
+        return AssetsBundle(xmlid, files, env=env)
 
     @tools.conditional(
         # in non-xml-debug mode we want assets to be cached forever, and the admin can force a cache clear
         # by restarting the server after updating the source code (or using the "Clear server cache" in debug tools)
         'xml' not in tools.config['dev_mode'],
-        tools.ormcache_context('xmlid', 'options.get("lang", "en_US")', 'css', 'js', 'debug', 'async_load', keys=("website_id",)),
+        tools.ormcache_context('xmlid', 'options.get("lang", "en_US")', 'css', 'js', 'debug', 'async_load', 'defer_load', 'lazy_load', keys=("website_id",)),
     )
-    def _get_asset_nodes(self, xmlid, options, css=True, js=True, debug=False, async_load=False, values=None):
+    def _get_asset_nodes(self, xmlid, options, css=True, js=True, debug=False, async_load=False, defer_load=False, lazy_load=False, values=None):
         files, remains = self._get_asset_content(xmlid, options)
         asset = self.get_asset_bundle(xmlid, files, env=self.env)
         remains = [node for node in remains if (css and node[0] == 'link') or (js and node[0] != 'link')]
-        return remains + asset.to_node(css=css, js=js, debug=debug, async_load=async_load)
+        return remains + asset.to_node(css=css, js=js, debug=debug, async_load=async_load, defer_load=defer_load, lazy_load=lazy_load)
+
+    def _get_asset_link_urls(self, xmlid, options):
+        asset_nodes = self._get_asset_nodes(xmlid, options, js=False)
+        return [node[1]['href'] for node in asset_nodes if node[0] == 'link']
 
     @tools.ormcache_context('xmlid', 'options.get("lang", "en_US")', keys=("website_id",))
     def _get_asset_content(self, xmlid, options):

@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-# decorator makes wrappers that have the same API as their wrapped function;
-# this is important for the odoo.api.guess() that relies on signatures
+# decorator makes wrappers that have the same API as their wrapped function
 from collections import defaultdict
 from decorator import decorator
 from inspect import formatargspec, getargspec
 import logging
-
-from . import pycompat
 
 unsafe_eval = eval
 
@@ -93,6 +90,7 @@ class ormcache(object):
             value = d[key] = self.method(*args, **kwargs)
             return value
         except TypeError:
+            _logger.warn("cache lookup error on %r", key, exc_info=True)
             counter.err += 1
             return self.method(*args, **kwargs)
 
@@ -139,7 +137,7 @@ class ormcache_multi(ormcache):
     def determine_key(self):
         """ Determine the function that computes a cache key from arguments. """
         assert self.skiparg is None, "ormcache_multi() no longer supports skiparg"
-        assert isinstance(self.multi, pycompat.string_types), "ormcache_multi() parameter multi must be an argument name"
+        assert isinstance(self.multi, str), "ormcache_multi() parameter multi must be an argument name"
 
         super(ormcache_multi, self).determine_key()
 

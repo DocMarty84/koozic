@@ -23,6 +23,7 @@ import tempfile
 import threading
 import time
 import unittest
+import difflib
 import werkzeug.urls
 from contextlib import contextmanager
 from datetime import datetime, date
@@ -33,8 +34,7 @@ from lxml import etree, html
 
 from odoo.models import BaseModel
 from odoo.osv.expression import normalize_domain
-from odoo.tools import pycompat
-from odoo.tools import single_email_re
+from odoo.tools import float_compare, single_email_re
 from odoo.tools.misc import find_in_path
 from odoo.tools.safe_eval import safe_eval
 
@@ -190,8 +190,9 @@ class MetaCase(type):
         super(MetaCase, cls).__init__(name, bases, attrs)
         # assign default test tags
         if cls.__module__.startswith('odoo.addons.'):
-            module = cls.__module__.split('.')[2]
-            cls.test_tags = {'standard', 'at_install', module}
+            cls.test_tags = {'standard', 'at_install'}
+            cls.test_module = cls.__module__.split('.')[2]
+            cls.test_class = cls.__name__
 
 
 class BaseCase(TreeCase, MetaCase('DummyCase', (object,), {})):
@@ -245,7 +246,10 @@ class BaseCase(TreeCase, MetaCase('DummyCase', (object,), {})):
     def _assertRaises(self, exception):
         """ Context manager that clears the environment upon failure. """
         with super(BaseCase, self).assertRaises(exception) as cm:
-            with self.env.clear_upon_failure():
+            if hasattr(self, 'env'):
+                with self.env.clear_upon_failure():
+                    yield cm
+            else:
                 yield cm
 
     def assertRaises(self, exception, func=None, *args, **kwargs):
@@ -256,7 +260,7 @@ class BaseCase(TreeCase, MetaCase('DummyCase', (object,), {})):
             return self._assertRaises(exception)
 
     @contextmanager
-    def assertQueryCount(self, default=0, **counters):
+    def assertQueryCount(self, default=0, flush=True, **counters):
         """ Context manager that counts queries. It may be invoked either with
             one value, or with a set of named arguments like ``login=value``::
 
@@ -273,8 +277,12 @@ class BaseCase(TreeCase, MetaCase('DummyCase', (object,), {})):
             with self.subTest(), patch('random.random', lambda: 1):
                 login = self.env.user.login
                 expected = counters.get(login, default)
+                if flush:
+                    self.env.user.flush()
                 count0 = self.cr.sql_log_count
                 yield
+                if flush:
+                    self.env.user.flush()
                 count = self.cr.sql_log_count - count0
                 if count != expected:
                     # add some info on caller to allow semi-automatic update of query count
@@ -290,6 +298,8 @@ class BaseCase(TreeCase, MetaCase('DummyCase', (object,), {})):
                         logger.info(msg, login, count, expected, funcname, filename, linenum)
         else:
             yield
+            if flush:
+                self.env.user.flush()
 
     def assertRecordValues(self, records, expected_values):
         ''' Compare a recordset with a list of dictionaries representing the expected results.
@@ -306,59 +316,102 @@ class BaseCase(TreeCase, MetaCase('DummyCase', (object,), {})):
         :param expected_values:       List of dicts expected to be exactly matched in records
         '''
 
-        def _compare_candidate(record, candidate):
-            ''' Return True if the candidate matches the given record '''
-            for field_name in candidate.keys():
+        def _compare_candidate(record, candidate, field_names):
+            ''' Compare all the values in `candidate` with a record.
+            :param record:      record being compared
+            :param candidate:   dict of values to compare
+            :return:            A dictionary will encountered difference in values.
+            '''
+            diff = {}
+            for field_name in field_names:
                 record_value = record[field_name]
-                candidate_value = candidate[field_name]
-                field_type = record._fields[field_name].type
+                field = record._fields[field_name]
+                field_type = field.type
                 if field_type == 'monetary':
                     # Compare monetary field.
                     currency_field_name = record._fields[field_name].currency_field
                     record_currency = record[currency_field_name]
-                    if record_currency.compare_amounts(candidate_value, record_value)\
-                            if record_currency else candidate_value != record_value:
-                        return False
+                    if field_name not in candidate:
+                        diff[field_name] = (record_value, None)
+                    elif record_currency:
+                        if record_currency.compare_amounts(candidate[field_name], record_value):
+                            diff[field_name] = (record_value, record_currency.round(candidate[field_name]))
+                    elif candidate[field_name] != record_value:
+                        diff[field_name] = (record_value, candidate[field_name])
+                elif field_type == 'float' and field.get_digits(record.env):
+                    prec = field.get_digits(record.env)[1]
+                    if float_compare(candidate[field_name], record_value, precision_digits=prec) != 0:
+                        diff[field_name] = (record_value, candidate[field_name])
                 elif field_type in ('one2many', 'many2many'):
                     # Compare x2many relational fields.
                     # Empty comparison must be an empty list to be True.
-                    if set(record_value.ids) != set(candidate_value):
-                        return False
+                    if field_name not in candidate:
+                        diff[field_name] = (sorted(record_value.ids), None)
+                    elif set(record_value.ids) != set(candidate[field_name]):
+                        diff[field_name] = (sorted(record_value.ids), sorted(candidate[field_name]))
                 elif field_type == 'many2one':
                     # Compare many2one relational fields.
                     # Every falsy value is allowed to compare with an empty record.
-                    if (record_value or candidate_value) and record_value.id != candidate_value:
-                        return False
-                elif (candidate_value or record_value) and record_value != candidate_value:
+                    if field_name not in candidate:
+                        diff[field_name] = (record_value.id, None)
+                    elif (record_value or candidate[field_name]) and record_value.id != candidate[field_name]:
+                        diff[field_name] = (record_value.id, candidate[field_name])
+                else:
                     # Compare others fields if not both interpreted as falsy values.
-                    return False
-            return True
+                    if field_name not in candidate:
+                        diff[field_name] = (record_value, None)
+                    elif (candidate[field_name] or record_value) and record_value != candidate[field_name]:
+                        diff[field_name] = (record_value, candidate[field_name])
+            return diff
 
-        def _format_message(records, expected_values):
-            ''' Return a formatted representation of records/expected_values. '''
-            all_records_values = records.read(list(expected_values[0].keys()), load=False)
-            msg1 = '\n'.join(pprint.pformat(dic) for dic in all_records_values)
-            msg2 = '\n'.join(pprint.pformat(dic) for dic in expected_values)
-            return 'Current values:\n\n%s\n\nExpected values:\n\n%s' % (msg1, msg2)
-
-        # if the length or both things to compare is different, we can already tell they're not equal
-        if len(records) != len(expected_values):
-            msg = 'Wrong number of records to compare: %d != %d.\n\n' % (len(records), len(expected_values))
-            self.fail(msg + _format_message(records, expected_values))
-
+        # Compare records with candidates.
+        different_values = []
+        field_names = list(expected_values[0].keys())
         for index, record in enumerate(records):
-            if not _compare_candidate(record, expected_values[index]):
-                msg = 'Record doesn\'t match expected values at index %d.\n\n' % index
-                self.fail(msg + _format_message(records, expected_values))
+            is_additional_record = index >= len(expected_values)
+            candidate = {} if is_additional_record else expected_values[index]
+            diff = _compare_candidate(record, candidate, field_names)
+            if diff:
+                different_values.append((index, 'additional_record' if is_additional_record else 'regular_diff', diff))
+        for index in range(len(records), len(expected_values)):
+            diff = {}
+            for field_name in field_names:
+                diff[field_name] = (None, expected_values[index][field_name])
+            different_values.append((index, 'missing_record', diff))
+
+        # Build error message.
+        if not different_values:
+            return
+
+        errors = ['The records and expected_values do not match.']
+        if len(records) != len(expected_values):
+            errors.append('Wrong number of records to compare: %d records versus %d expected values.' % (len(records), len(expected_values)))
+
+        for index, diff_type, diff in different_values:
+            if diff_type == 'regular_diff':
+                errors.append('\n==== Differences at index %s ====' % index)
+                record_diff = ['%s:%s' % (k, v[0]) for k, v in diff.items()]
+                candidate_diff = ['%s:%s' % (k, v[1]) for k, v in diff.items()]
+                errors.append('\n'.join(difflib.unified_diff(record_diff, candidate_diff)))
+            elif diff_type == 'additional_record':
+                errors += [
+                    '\n==== Additional record ====',
+                    pprint.pformat(dict((k, v[0]) for k, v in diff.items())),
+                ]
+            elif diff_type == 'missing_record':
+                errors += [
+                    '\n==== Missing record ====',
+                    pprint.pformat(dict((k, v[1]) for k, v in diff.items())),
+                ]
+
+        self.fail('\n'.join(errors))
 
     def shortDescription(self):
-        doc = self._testMethodDoc
-        return doc and ' '.join(l.strip() for l in doc.splitlines() if not l.isspace()) or None
+        return None
 
-    if not pycompat.PY2:
-        # turns out this thing may not be quite as useful as we thought...
-        def assertItemsEqual(self, a, b, msg=None):
-            self.assertCountEqual(a, b, msg=None)
+    # turns out this thing may not be quite as useful as we thought...
+    def assertItemsEqual(self, a, b, msg=None):
+        self.assertCountEqual(a, b, msg=None)
 
 
 class TransactionCase(BaseCase):
@@ -410,6 +463,10 @@ class SingleTransactionCase(BaseCase):
         cls.cr = cls.registry.cursor()
         cls.env = api.Environment(cls.cr, odoo.SUPERUSER_ID, {})
 
+    def setUp(self):
+        super(SingleTransactionCase, self).setUp()
+        self.env.user.flush()
+
     @classmethod
     def tearDownClass(cls):
         # rollback and close the cursor, and reset the environments
@@ -436,6 +493,11 @@ class SavepointCase(SingleTransactionCase):
         super(SavepointCase, self).setUp()
         self._savepoint_id = next(savepoint_seq)
         self.cr.execute('SAVEPOINT test_%d' % self._savepoint_id)
+        # restore environments after the test to avoid invoking flush() with an
+        # invalid environment (inexistent user id) from another test
+        envs = self.env.all.envs
+        self.addCleanup(envs.update, list(envs))
+        self.addCleanup(envs.clear)
 
     def tearDown(self):
         self.cr.execute('ROLLBACK TO SAVEPOINT test_%d' % self._savepoint_id)
@@ -444,11 +506,16 @@ class SavepointCase(SingleTransactionCase):
         super(SavepointCase, self).tearDown()
 
 
+class ChromeBrowserException(Exception):
+    pass
+
+
 class ChromeBrowser():
     """ Helper object to control a Chrome headless process. """
 
-    def __init__(self, logger):
+    def __init__(self, logger, window_size, test_class):
         self._logger = logger
+        self.test_class = test_class
         if websocket is None:
             self._logger.warning("websocket-client module is not installed")
             raise unittest.SkipTest("websocket-client module is not installed")
@@ -458,7 +525,20 @@ class ChromeBrowser():
         self.request_id = 0
         self.user_data_dir = tempfile.mkdtemp(suffix='_chrome_odoo')
         self.chrome_process = None
+
+        otc = odoo.tools.config
+        self.screenshots_dir = os.path.join(otc['screenshots'], get_db_name(), 'screenshots')
+        self.screencasts_dir = None
+        if otc['screencasts']:
+            if otc['screencasts'] in ('1', 'true', 't'):
+                self.screencasts_dir = os.path.join(otc['screenshots'], get_db_name(), 'screencasts')
+            else:
+                self.screencasts_dir =os.path.join(otc['screencasts'], get_db_name(), 'screencasts')
+
         self.screencast_frames = []
+        os.makedirs(self.screenshots_dir, exist_ok=True)
+
+        self.window_size = window_size
         self._chrome_start()
         self._find_websocket()
         self._logger.info('Websocket url found: %s', self.ws_url)
@@ -488,7 +568,7 @@ class ChromeBrowser():
                 self.chrome_process.wait()
         if self.user_data_dir and os.path.isdir(self.user_data_dir) and self.user_data_dir != '/':
             self._logger.info('Removing chrome user profile "%s"', self.user_data_dir)
-            shutil.rmtree(self.user_data_dir)
+            shutil.rmtree(self.user_data_dir, ignore_errors=True)
         # Restore previous signal handler
         if self.sigxcpu_handler and os.name == 'posix':
             signal.signal(signal.SIGXCPU, self.sigxcpu_handler)
@@ -527,9 +607,22 @@ class ChromeBrowser():
             '--no-default-browser-check': '',
             '--no-first-run': '',
             '--disable-extensions': '',
+            '--disable-background-networking' : '',
+            '--disable-background-timer-throttling' : '',
+            '--disable-backgrounding-occluded-windows': '',
+            '--disable-renderer-backgrounding' : '',
+            '--disable-breakpad': '',
+            '--disable-client-side-phishing-detection': '',
+            '--disable-crash-reporter': '',
+            '--disable-default-apps': '',
+            '--disable-dev-shm-usage': '',
+            '--disable-device-discovery-notifications': '',
+            '--disable-namespace-sandbox': '',
             '--user-data-dir': self.user_data_dir,
             '--disable-translate': '',
-            '--window-size': '1366x768',
+            # required for tours that use Youtube autoplay conditions (namely website_slides' "course_tour")
+            '--autoplay-policy': 'no-user-gesture-required',
+            '--window-size': self.window_size,
             '--remote-debugging-address': HOST,
             '--remote-debugging-port': str(self.devtools_port),
             '--no-sandbox': '',
@@ -569,22 +662,32 @@ class ChromeBrowser():
             version : get chrome and dev tools version
             protocol : get the full protocol
         """
-        self._logger.info("Issuing json command %s", command)
         command = os.path.join('json', command).strip('/')
-        while timeout > 0:
+        url = werkzeug.urls.url_join('http://%s:%s/' % (HOST, self.devtools_port), command)
+        self._logger.info("Issuing json command %s", url)
+        delay = 0.1
+        tries = 0
+        failure_info = None
+        while tries * delay < timeout:
+            if self.chrome_process.poll() is not None:
+                self._logger.error('Chrome crashed at startup with return code', self.chrome_process.returncode)
+                break
             try:
-                url = werkzeug.urls.url_join('http://%s:%s/' % (HOST, self.devtools_port), command)
-                self._logger.info('Url : %s', url)
                 r = requests.get(url, timeout=3)
                 if r.ok:
+                    self._logger.info("Json command result in %s", tries * delay)
                     return r.json()
                 return {'status_code': r.status_code}
-            except requests.ConnectionError:
-                time.sleep(0.1)
-                timeout -= 0.1
-            except requests.exceptions.ReadTimeout:
+            except requests.ConnectionError as e:
+                failure_info = str(e)
+                time.sleep(delay)
+                tries+=1
+            except requests.exceptions.ReadTimeout as e:
+                failure_info = str(e)
                 break
-        self._logger.error('Could not connect to chrome debugger')
+        self._logger.error('Could not connect to chrome debugger after %s tries, %ss' % (tries, delay))
+        if failure_info:
+            self._logger.info(failure_info)
         raise unittest.SkipTest("Cannot connect to chrome headless")
 
     def _open_websocket(self):
@@ -644,53 +747,71 @@ class ChromeBrowser():
                 self._logger.debug('chrome devtools protocol event: %s', res)
         self._logger.info('timeout exceeded while waiting for : %s', method)
 
-    def _get_shotname(self, prefix, ext):
-        """ return a unique filename for screenshot or screencast"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-        base_file = os.path.splitext(odoo.tools.config['logfile'])[0]
-        name = '%s_%s_%s.%s' % (base_file, prefix, timestamp, ext)
-        return name
-
-    def take_screenshot(self, prefix='failed'):
-        if not odoo.tools.config['logfile']:
-            self._logger.info('Screenshot disabled !')
-            return None
+    def take_screenshot(self, prefix='sc_', suffix=None):
+        if suffix is None:
+            suffix = '_%s' % self.test_class
         ss_id = self._websocket_send('Page.captureScreenshot')
         self._logger.info('Asked for screenshot (id: %s)', ss_id)
         res = self._websocket_wait_id(ss_id)
         base_png = res.get('result', {}).get('data')
         decoded = base64.decodebytes(bytes(base_png.encode('utf-8')))
-        outfile = self._get_shotname(prefix, 'png')
-        with open(outfile, 'wb') as f:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        fname = '%s%s%s.png' % (prefix, timestamp,suffix)
+        full_path = os.path.join(self.screenshots_dir, fname)
+        with open(full_path, 'wb') as f:
             f.write(decoded)
-        self._logger.info('Screenshot in: %s', outfile)
+        self._logger.log(25, 'Screenshot in: %s', full_path)
 
     def _save_screencast(self, prefix='failed'):
         # could be encododed with something like that
         #  ffmpeg -framerate 3 -i frame_%05d.png  output.mp4
-        if not odoo.tools.config['logfile']:
-            self._logger.info('Screencast disabled !')
+        if not self.screencast_frames:
+            self._logger.debug('No screencast frames to encode')
             return None
-        sdir = tempfile.mkdtemp(suffix='_chrome_odoo_screencast')
-        nb = 0
-        for frame in self.screencast_frames:
-            outfile = os.path.join(sdir, 'frame_%05d.png' % nb)
-            with open(outfile, 'wb') as f:
-                f.write(base64.decodebytes(bytes(frame.get('data').encode('utf-8'))))
-                nb += 1
-        framerate = int(nb / (self.screencast_frames[nb-1].get('metadata').get('timestamp') - self.screencast_frames[0].get('metadata').get('timestamp')))
-        outfile = self._get_shotname(prefix, 'mp4')
-        r = subprocess.run(['ffmpeg', '-framerate', str(framerate), '-i', '%s/frame_%%05d.png' % sdir, outfile])
-        shutil.rmtree(sdir)
-        if r.returncode == 0:
-            self._logger.info('Screencast in: %s', outfile)
+
+        for f in self.screencast_frames:
+            with open(f['file_path'], 'rb') as b64_file:
+                frame = base64.decodebytes(b64_file.read())
+            os.unlink(f['file_path'])
+            f['file_path'] = f['file_path'].replace('.b64', '.png')
+            with open(f['file_path'], 'wb') as png_file:
+                png_file.write(frame)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        fname = '%s_screencast_%s.mp4' % (prefix, timestamp)
+        outfile = os.path.join(self.screencasts_dir, fname)
+        
+        try:
+            ffmpeg_path = find_in_path('ffmpeg')
+        except IOError:
+            ffmpeg_path = None
+
+        if ffmpeg_path:
+            framerate = int(len(self.screencast_frames) / (self.screencast_frames[-1].get('timestamp') - self.screencast_frames[0].get('timestamp')))
+            r = subprocess.run([ffmpeg_path, '-framerate', str(framerate), '-i', '%s/frame_%%05d.png' % self.screencasts_dir, outfile])
+            self._logger.log(25, 'Screencast in: %s', outfile)
+        else:
+            outfile = outfile.strip('.mp4')
+            shutil.move(self.screencasts_frames_dir, outfile)
+            self._logger.log(25, 'Screencast frames in: %s', outfile)
 
     def start_screencast(self):
-        self._websocket_send('Page.startScreencast', {'params': {'everyNthFrame': 5, 'maxWidth': 683, 'maxHeight': 384}})
+        if self.screencasts_dir:
+            os.makedirs(self.screencasts_dir, exist_ok=True)
+            self.screencasts_frames_dir = os.path.join(self.screencasts_dir, 'frames')
+            os.makedirs(self.screencasts_frames_dir, exist_ok=True)
+        self._websocket_send('Page.startScreencast', params={'maxWidth': 1024, 'maxHeight': 576})
 
     def set_cookie(self, name, value, path, domain):
         params = {'name': name, 'value': value, 'path': path, 'domain': domain}
-        self._websocket_send('Network.setCookie', params=params)
+        _id = self._websocket_send('Network.setCookie', params=params)
+        return self._websocket_wait_id(_id)
+
+    def delete_cookie(self, name, **kwargs):
+        params = {kw:kwargs[kw] for kw in kwargs if kw in ['url', 'domain', 'path']}
+        params.update({'name': name})
+        _id = self._websocket_send('Network.deleteCookies', params=params)
+        return self._websocket_wait_id(_id) 
 
     def _wait_ready(self, ready_code, timeout=60):
         self._logger.info('Evaluate ready code "%s"', ready_code)
@@ -707,6 +828,8 @@ class ChromeBrowser():
                 res = None
             if res and res.get('id') == ready_id:
                 if res.get('result') == awaited_result:
+                    if has_exceeded:
+                        self._logger.info('The ready code tooks too much time : %s', tdiff)
                     return True
                 else:
                     last_bad_res = res
@@ -714,9 +837,8 @@ class ChromeBrowser():
             tdiff = time.time() - start_time
             if tdiff >= 2 and not has_exceeded:
                 has_exceeded = True
-                self._logger.warning('The ready code takes too much time : %s', tdiff)
 
-        self.take_screenshot(prefix='failed_ready')
+        self.take_screenshot(prefix='sc_failed_ready_')
         self._logger.info('Ready code last try result: %s', last_bad_res or res)
         return False
 
@@ -725,6 +847,7 @@ class ChromeBrowser():
         code_id = self._websocket_send('Runtime.evaluate', params={'expression': code})
         start_time = time.time()
         logged_error = False
+        nb_frame = 0
         while time.time() - start_time < timeout:
             try:
                 res = json.loads(self.ws.recv())
@@ -733,35 +856,41 @@ class ChromeBrowser():
             if res and res.get('id', -1) == code_id:
                 self._logger.info('Code start result: %s', res)
                 if res.get('result', {}).get('result').get('subtype', '') == 'error':
-                    self._logger.error("Running code returned an error")
-                    return False
-            elif res and res.get('method') == 'Runtime.consoleAPICalled' and res.get('params', {}).get('type') in ('log', 'error'):
+                    raise ChromeBrowserException("Running code returned an error: %s" % res)
+            elif res and res.get('method') == 'Runtime.exceptionThrown':
+                exception_details = res.get('params', {}).get('exceptionDetails', {})
+                self.take_screenshot()
+                self._save_screencast()
+                raise ChromeBrowserException(exception_details)
+            elif res and res.get('method') == 'Runtime.consoleAPICalled' and res.get('params', {}).get('type') in ('log', 'error', 'trace'):
                 logs = res.get('params', {}).get('args')
                 log_type = res.get('params', {}).get('type')
                 content = " ".join([str(log.get('value', '')) for log in logs])
                 if log_type == 'error':
-                    self._logger.error(content)
-                    logged_error = True
+                    self.take_screenshot()
+                    self._save_screencast()
+                    raise ChromeBrowserException(content)
                 else:
                     self._logger.info('console log: %s', content)
-                for log in logs:
-                    if log.get('type', '') == 'string' and log.get('value', '').lower() == 'ok':
-                        # it is possible that some tests returns ok while an error was shown in logs.
-                        # since runbot should always be red in this case, better explicitly fail.
-                        if logged_error:
-                            return False
+                    if 'test successful' in content:
                         return True
-                    elif log.get('type', '') == 'string' and log.get('value', '').lower().startswith('error'):
-                        self.take_screenshot()
-                        self._save_screencast()
-                        return False
             elif res and res.get('method') == 'Page.screencastFrame':
-                self.screencast_frames.append(res.get('params'))
+                session_id = res.get('params').get('sessionId')
+                self._websocket_send('Page.screencastFrameAck', params={'sessionId': int(session_id)})
+                outfile = os.path.join(self.screencasts_frames_dir, 'frame_%05d.b64' % nb_frame)
+                frame = res.get('params')
+                with open(outfile, 'w') as f:
+                    f.write(frame.get('data'))
+                    nb_frame += 1
+                    self.screencast_frames.append({
+                        'file_path': outfile,
+                        'timestamp': frame.get('metadata').get('timestamp')
+                    })
             elif res:
                 self._logger.debug('chrome devtools protocol event: %s', res)
-        self._logger.error('Script timeout exceeded : %s', (time.time() - start_time))
         self.take_screenshot()
-        return False
+        raise ChromeBrowserException('Script timeout exceeded : %s' % (time.time() - start_time))
+
 
     def navigate_to(self, url, wait_stop=False):
         self._logger.info('Navigating to: "%s"', url)
@@ -775,9 +904,14 @@ class ChromeBrowser():
 
     def clear(self):
         self._websocket_send('Page.stopScreencast')
+        if self.screencasts_dir and os.path.isdir(self.screencasts_frames_dir):
+            shutil.rmtree(self.screencasts_frames_dir)
         self.screencast_frames = []
-        self._websocket_send('Page.stopLoading')
+        sl_id = self._websocket_send('Page.stopLoading')
+        self._websocket_wait_id(sl_id)
         self._logger.info('Deleting cookies and clearing local storage')
+        dc_id = self._websocket_send('Network.clearBrowserCache')
+        self._websocket_wait_id(dc_id)
         dc_id = self._websocket_send('Network.clearBrowserCookies')
         self._websocket_wait_id(dc_id)
         cl_id = self._websocket_send('Runtime.evaluate', params={'expression': 'localStorage.clear()'})
@@ -790,6 +924,7 @@ class HttpCase(TransactionCase):
     """
     registry_test_mode = True
     browser = None
+    browser_size = '1366x768'
 
     def __init__(self, methodName='runTest'):
         super(HttpCase, self).__init__(methodName)
@@ -799,19 +934,23 @@ class HttpCase(TransactionCase):
         self.xmlrpc_db = xmlrpclib.ServerProxy(url_8 + 'db')
         self.xmlrpc_object = xmlrpclib.ServerProxy(url_8 + 'object')
         cls = type(self)
-        self._logger = logging.getLogger('%s.%s' % (cls.__module__, cls.__name__))
+        cls._logger = logging.getLogger('%s.%s' % (cls.__module__, cls.__name__))
 
     @classmethod
-    def start_browser(cls, logger):
+    def start_browser(cls):
         # start browser on demand
         if cls.browser is None:
-            cls.browser = ChromeBrowser(logger)
+            cls.browser = ChromeBrowser(cls._logger, cls.browser_size, cls.__name__)
 
     @classmethod
-    def tearDownClass(cls):
+    def terminate_browser(cls):
         if cls.browser:
             cls.browser.stop()
             cls.browser = None
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.terminate_browser()
         super(HttpCase, cls).tearDownClass()
 
     def setUp(self):
@@ -829,33 +968,34 @@ class HttpCase(TransactionCase):
         self.opener = requests.Session()
         self.opener.cookies['session_id'] = self.session_id
 
-    def url_open(self, url, data=None, timeout=10):
+    def url_open(self, url, data=None, files=None, timeout=10, headers=None):
+        self.env['base'].flush()
         if url.startswith('/'):
             url = "http://%s:%s%s" % (HOST, PORT, url)
-        if data:
-            return self.opener.post(url, data=data, timeout=timeout)
-        return self.opener.get(url, timeout=timeout)
+        if data or files:
+            return self.opener.post(url, data=data, files=files, timeout=timeout, headers=headers)
+        return self.opener.get(url, timeout=timeout, headers=headers)
 
-    def _wait_remaining_requests(self):
-        t0 = int(time.time())
-        for thread in threading.enumerate():
-            if thread.name.startswith('odoo.service.http.request.'):
-                join_retry_count = 10
-                while thread.isAlive():
-                    # Need a busyloop here as thread.join() masks signals
-                    # and would prevent the forced shutdown.
-                    thread.join(0.05)
-                    join_retry_count -= 1
-                    if join_retry_count < 0:
-                        self._logger.warning("Stop waiting for thread %s handling request for url %s",
-                                        thread.name, getattr(thread, 'url', '<UNKNOWN>'))
-                        break
-                    time.sleep(0.5)
-                    t1 = int(time.time())
-                    if t0 != t1:
-                        self._logger.info('remaining requests')
-                        odoo.tools.misc.dumpstacks()
-                        t0 = t1
+    def _wait_remaining_requests(self, timeout=10):
+
+        def get_http_request_threads():
+            return [t for t in threading.enumerate() if t.name.startswith('odoo.service.http.request.')]
+
+        start_time = time.time()
+        request_threads = get_http_request_threads()
+        self._logger.info('waiting for threads: %s', request_threads)
+
+        for thread in request_threads:
+            thread.join(timeout - (time.time() - start_time))
+
+        request_threads = get_http_request_threads()
+        for thread in request_threads:
+            self._logger.info("Stop waiting for thread %s handling request for url %s",
+                                    thread.name, getattr(thread, 'url', '<UNKNOWN>'))
+
+        if request_threads:
+            self._logger.info('remaining requests')
+            odoo.tools.misc.dumpstacks()
 
     def authenticate(self, user, password):
         # stay non-authenticated
@@ -892,28 +1032,32 @@ class HttpCase(TransactionCase):
         - eval(code) inside the page
 
         To signal success test do:
-        console.log('ok')
+        console.log('test successful')
 
         To signal failure do:
-        console.log('error')
+        console.error('test failed')
 
         If neither are done before timeout test fails.
         """
         # increase timeout if coverage is running
         if any(f.filename.endswith('/coverage/execfile.py') for f in inspect.stack()  if f.filename):
             timeout = timeout * 1.5
-        self.start_browser(self._logger)
+
+        self.start_browser()
 
         try:
             self.authenticate(login, login)
             base_url = "http://%s:%s" % (HOST, PORT)
             ICP = self.env['ir.config_parameter']
             ICP.set_param('web.base.url', base_url)
+            # flush updates to the database before launching the client side,
+            # otherwise they simply won't be visible
+            ICP.flush()
             url = "%s%s" % (base_url, url_path or '/')
             self._logger.info('Open "%s" in browser', url)
 
-            if odoo.tools.config['logfile']:
-                self._logger.info('Starting screen cast')
+            if self.browser.screencasts_dir:
+                self._logger.info('Starting screencast')
                 self.browser.start_screencast()
             self.browser.navigate_to(url, wait_stop=not bool(ready))
 
@@ -921,18 +1065,42 @@ class HttpCase(TransactionCase):
             # code = ""
             ready = ready or "document.readyState === 'complete'"
             self.assertTrue(self.browser._wait_ready(ready), 'The ready "%s" code was always falsy' % ready)
-            if code:
-                message = 'The test code "%s" failed' % code
-            else:
-                message = "Some js test failed"
-            self.assertTrue(self.browser._wait_code_ok(code, timeout), message)
+
+            error = False
+            try:
+                self.browser._wait_code_ok(code, timeout)
+            except ChromeBrowserException as chrome_browser_exception:
+                error = chrome_browser_exception
+            if error:  # dont keep initial traceback, keep that outside of except
+                if code:
+                    message = 'The test code "%s" failed' % code
+                else:
+                    message = "Some js test failed"
+                self.fail('%s\n%s' % (message, error))
+
         finally:
             # clear browser to make it stop sending requests, in case we call
             # the method several times in a test method
+            self.browser.delete_cookie('session_id', domain=HOST)
             self.browser.clear()
             self._wait_remaining_requests()
 
+    def start_tour(self, url_path, tour_name, step_delay=None, **kwargs):
+        """Wrapper for `browser_js` to start the given `tour_name` with the
+        optional delay between steps `step_delay`. Other arguments from
+        `browser_js` can be passed as keyword arguments."""
+        step_delay = ', %s' % step_delay if step_delay else ''
+        code = kwargs.pop('code', "odoo.startTour('%s'%s)" % (tour_name, step_delay))
+        ready = kwargs.pop('ready', "odoo.__DEBUG__.services['web_tour.tour'].tours.%s.ready" % tour_name)
+        res = self.browser_js(url_path=url_path, code=code, ready=ready, **kwargs)
+        # some tests read the result after the tour, and as  the tour does not
+        # use this environment's cache, invalidate it to fetch the data from the
+        # database
+        self.env.cache.invalidate()
+        return res
+
     phantom_js = browser_js
+
 
 def users(*logins):
     """ Decorate a method to execute it once for each given user. """
@@ -952,6 +1120,9 @@ def users(*logins):
                     # switch user and execute func
                     self.uid = user_id[login]
                     func(*args, **kwargs)
+                # Invalidate the cache between subtests, in order to not reuse
+                # the former user's cache (`test_read_mail`, `test_write_mail`)
+                self.env.cache.invalidate()
         finally:
             self.uid = old_uid
 
@@ -966,13 +1137,16 @@ def warmup(func, *args, **kwargs):
         effects of the warmup phase are rolled back thanks to a savepoint.
     """
     self = args[0]
+    self.env['base'].flush()
+    self.env.cache.invalidate()
     # run once to warm up the caches
     self.warm = False
     self.cr.execute('SAVEPOINT test_warmup')
     func(*args, **kwargs)
+    self.env['base'].flush()
+    # run once for real
     self.cr.execute('ROLLBACK TO SAVEPOINT test_warmup')
     self.env.cache.invalidate()
-    # run once for real
     self.warm = True
     func(*args, **kwargs)
 
@@ -1093,7 +1267,7 @@ class Form(object):
         if isinstance(view, BaseModel):
             assert view._name == 'ir.ui.view', "the view parameter must be a view id, xid or record, got %s" % view
             view_id = view.id
-        elif isinstance(view, pycompat.string_types):
+        elif isinstance(view, str):
             view_id = env.ref(view).id
         else:
             view_id = view or False
@@ -1349,6 +1523,8 @@ class Form(object):
                 r.write(values)
         else:
             r = self._model.create(values)
+        self._model.flush()
+        self._model.invalidate_cache()
         [data] = r.read(list(self._view['fields']))
         # FIXME: process relational fields
         # alternative: iterate on record & read from it directly? pb: would
@@ -1365,8 +1541,9 @@ class Form(object):
         values = {}
         fields = self._view['fields']
         for f in fields:
+            descr = fields[f]
             v = self._values[f]
-            if self._get_modifier(f, 'required'):
+            if self._get_modifier(f, 'required') and not (descr['type'] == 'boolean' or self._get_modifier(f, 'invisible')):
                 assert v is not False, "{} is a required field".format(f)
 
             # skip unmodified fields
@@ -1378,8 +1555,8 @@ class Form(object):
                 if not node.get('force_save'):
                     continue
 
-            if fields[f]['type'] == 'one2many':
-                view = fields[f]['views']['edition']
+            if descr['type'] == 'one2many':
+                view = descr['views']['edition']
                 modifiers = view['modifiers']
                 oldvals = v
                 v = []
@@ -1393,7 +1570,21 @@ class Form(object):
                 for (c, rid, vs) in oldvals:
                     if c in (0, 1):
                         items = list(getattr(vs, 'changed_items', vs.items)())
-                        # FIXME: should be more extensive processing of o2m defaults
+                        fields_ = view['fields']
+                        missing = fields_.keys() - vs.keys()
+                        if missing:
+                            Model = self._env[descr['relation']]
+                            if c == 0:
+                                vs.update(dict.fromkeys(missing, False))
+                                vs.update(
+                                    (k, _cleanup_from_default(fields_[k], v))
+                                    for k, v in Model.default_get(list(missing)).items()
+                                )
+                            else:
+                                vs.update(record_to_values(
+                                    {k: v for k, v in fields_.items() if k not in vs},
+                                    Model.browse(rid)
+                                ))
                         vs.setdefault('id', False)
                         vs['•parent•'] = self._values
                         vs = {
@@ -1418,6 +1609,8 @@ class Form(object):
 
         record = self._model.browse(self._values.get('id'))
         result = record.onchange(self._onchange_values(), fields, spec)
+        self._model.flush()
+        self._model.invalidate_cache()
         if result.get('warning'):
             _logger.getChild('onchange').warn("%(title)s %(message)s" % result.get('warning'))
         values = result.get('value', {})
@@ -1532,6 +1725,12 @@ class O2MForm(Form):
         else:
             self._values.update(proxy._records[index])
 
+    def _get_modifier(self, field, modifier, default=False, modmap=None, vals=None):
+        if vals is None:
+            vals = {**self._values, '•parent•': self._proxy._parent._values}
+
+        return super()._get_modifier(field, modifier, default=default, modmap=modmap, vals=vals)
+
     def _onchange_values(self):
         values = super(O2MForm, self)._onchange_values()
         # computed o2m may not have a relation_field(?)
@@ -1569,7 +1768,7 @@ class O2MForm(Form):
         values._changed.update(self._changed)
 
         for f in self._view['fields']:
-            if self._get_modifier(f, 'required'):
+            if self._get_modifier(f, 'required') and not (self._get_modifier(f, 'column_invisible') or self._get_modifier(f, 'invisible')):
                 assert self._values[f] is not False, "{} is a required field".format(f)
 
         return values
@@ -1791,6 +1990,23 @@ def record_to_values(fields, record):
         r[f] = v
     return r
 
+def _cleanup_from_default(type_, value):
+    if not value:
+        if type_ == 'many2many':
+            return [(6, False, [])]
+        elif type_ == 'one2many':
+            return []
+        elif type_ in ('integer', 'float'):
+            return 0
+        return value
+
+    if type_ == 'one2many':
+        return [c for c in value if c[0] != 6]
+    elif type_ == 'datetime' and isinstance(value, datetime):
+        return odoo.fields.Datetime.to_string(value)
+    elif type_ == 'date' and isinstance(value, date):
+        return odoo.fields.Date.to_string(value)
+
 def _get_node(view, f, *arg):
     """ Find etree node for the field ``f`` in the view's arch
     """
@@ -1801,7 +2017,7 @@ def _get_node(view, f, *arg):
 
 def tagged(*tags):
     """
-    A decorator to tag TestCase objects
+    A decorator to tag BaseCase objects
     Tags are stored in a set that can be accessed from a 'test_tags' attribute
     A tag prefixed by '-' will remove the tag e.g. to remove the 'standard' tag
     By default, all Test classes from odoo.tests.common have a test_tags
@@ -1811,33 +2027,75 @@ def tagged(*tags):
     def tags_decorator(obj):
         include = {t for t in tags if not t.startswith('-')}
         exclude = {t[1:] for t in tags if t.startswith('-')}
-        obj.test_tags = (getattr(obj, 'test_tags', set()) | include) - exclude
+        obj.test_tags = (getattr(obj, 'test_tags', set()) | include) - exclude # todo remove getattr in master since we want to limmit tagged to BaseCase and always have +standard tag
         return obj
     return tags_decorator
 
 
 class TagsSelector(object):
     """ Test selector based on tags. """
+    filter_spec_re = re.compile(r'^([+-]?)(\*|\w*)(?:/(\w*))?(?::(\w*))?(?:\.(\w*))?$')  # [-][tag][/module][:class][.method]
 
     def __init__(self, spec):
         """ Parse the spec to determine tags to include and exclude. """
-        clean_tags = {t.strip() for t in spec.split(',') if t.strip() != ''}
-        self.exclude = {t[1:] for t in clean_tags if t.startswith('-')}
-        self.include = {t.replace('+', '') for t in clean_tags if not t.startswith('-')}
+        filter_specs = {t.strip() for t in spec.split(',') if t.strip()}
+        self.exclude = set()
+        self.include = set()
 
-    def check(self, arg):
+        for filter_spec in filter_specs:
+            match = self.filter_spec_re.match(filter_spec)
+            if not match:
+                _logger.error('Invalid tag %s', filter_spec)
+                continue
+
+            sign, tag, module, klass, method = match.groups()
+            is_include = sign != '-'
+
+            if not tag and is_include:
+                # including /module:class.method implicitly requires 'standard'
+                tag = 'standard'
+            elif not tag or tag == '*':
+                # '*' indicates all tests (instead of 'standard' tests only)
+                tag = None
+            test_filter = (tag, module, klass, method)
+
+            if is_include:
+                self.include.add(test_filter)
+            else:
+                self.exclude.add(test_filter)
+
+        if self.exclude and not self.include:
+            self.include.add(('standard', None, None, None))
+
+    def check(self, test):
         """ Return whether ``arg`` matches the specification: it must have at
-            least one tag in ``self.include`` and none in ``self.exclude``.
+            least one tag in ``self.include`` and none in ``self.exclude`` for each tag category.
         """
-        # handle the case where the Test does not inherit from TransactionCase
-        tags = getattr(arg, 'test_tags', set())
-        inter_no_test = self.exclude.intersection(tags)
-        if inter_no_test:
-            _logger.debug("Test '%s' not selected because it is tagged with : %s (exclusions: %s)", arg, inter_no_test, self.exclude)
+        if not hasattr(test, 'test_tags'): # handle the case where the Test does not inherit from BaseCase and has no test_tags
+            _logger.debug("Skipping test '%s' because no test_tag found.", test)
             return False
-        inter_to_test = self.include.intersection(tags)
-        if not inter_to_test:
-            _logger.debug("Test '%s' not selected because it was not tagged with %s", arg, self.include)
+
+        test_module = getattr(test, 'test_module', None)
+        test_class = getattr(test, 'test_class', None)
+        test_tags = test.test_tags | {test_module}  # module as test_tags deprecated, keep for retrocompatibility, 
+        test_method = getattr(test, '_testMethodName', None)
+
+        def _is_matching(test_filter):
+            (tag, module, klass, method) = test_filter
+            if tag and tag not in test_tags:
+                return False
+            elif module and module != test_module:
+                return False
+            elif klass and klass != test_class:
+                return False
+            elif method and test_method and method != test_method:
+                return False
+            return True
+
+        if any(_is_matching(test_filter) for test_filter in self.exclude):
             return False
-        _logger.debug("Test '%s' selected: tagged with %s, exclusions: %s, inclusions: %s", arg, tags, self.exclude, self.include)
-        return True
+
+        if any(_is_matching(test_filter) for test_filter in self.include):
+            return True
+
+        return False

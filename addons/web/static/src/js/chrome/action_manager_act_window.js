@@ -10,28 +10,39 @@ var ActionManager = require('web.ActionManager');
 var config = require('web.config');
 var Context = require('web.Context');
 var core = require('web.core');
-var data = require('web.data'); // this will be removed at some point
 var pyUtils = require('web.py_utils');
-var SearchView = require('web.SearchView');
 var view_registry = require('web.view_registry');
-
-var _t = core._t;
 
 ActionManager.include({
     custom_events: _.extend({}, ActionManager.prototype.custom_events, {
-        env_updated: '_onEnvUpdated',
         execute_action: '_onExecuteAction',
-        get_controller_context: '_onGetControllerContext',
-        update_filters: '_onUpdateFilters',
-        search: '_onSearch',
         switch_view: '_onSwitchView',
-        navigation_move: '_onNavigationMove',
     }),
 
     //--------------------------------------------------------------------------
     // Public
     //--------------------------------------------------------------------------
 
+    /**
+     * Override to handle the case of lazy-loaded controllers, which may be the
+     * last controller in the stack, but which should not be considered as
+     * current controller as they don't have an alive widget.
+     *
+     * Note: this function assumes that there can be at most one lazy loaded
+     * controller in the stack
+     *
+     * @override
+     */
+    getCurrentController: function () {
+        var currentController = this._super.apply(this, arguments);
+        var action = currentController && this.actions[currentController.actionID];
+        if (action && action.type === 'ir.actions.act_window' && !currentController.widget) {
+            var lastControllerID = this.controllerStack.pop();
+            currentController = this._super.apply(this, arguments);
+            this.controllerStack.push(lastControllerID);
+        }
+        return currentController;
+    },
     /**
      * Overrides to handle the case where an 'ir.actions.act_window' has to be
      * loaded.
@@ -47,10 +58,8 @@ ActionManager.include({
      * @param {string} [state.view_type]
      */
     loadState: function (state) {
-        var callersArguments = arguments;
-        var self = this;
+        var _super = this._super.bind(this);
         var action;
-        var def;
         var options = {
             clear_breadcrumbs: true,
             pushState: false,
@@ -62,9 +71,9 @@ ActionManager.include({
                 currentAction.type === 'ir.actions.act_window') {
                 // the action to load is already the current one, so update it
                 this._closeDialog(true); // there may be a currently opened dialog, close it
-                currentAction.env.currentId = state.id;
+                var viewOptions = {currentId: state.id};
                 var viewType = state.view_type || currentController.viewType;
-                return this._switchController(currentAction, viewType);
+                return this._switchController(currentAction, viewType, viewOptions);
             } else if (!core.action_registry.contains(state.action)) {
                 // the action to load isn't the current one, so execute it
                 var context = {};
@@ -85,7 +94,7 @@ ActionManager.include({
                 action = state.action;
                 options = _.extend(options, {
                     additional_context: context,
-                    resID: state.id,
+                    resID: state.id || undefined,  // empty string with bbq
                     viewType: state.view_type,
                 });
             }
@@ -105,79 +114,18 @@ ActionManager.include({
                 action = lastAction;
                 options.viewType = state.view_type;
             }
-        } else if (state.sa) {
-            def = this._rpc({
-                route: '/web/session/get_session_action',
-                params: {key: state.sa},
-            }).then(function (sessionAction) {
-                action = sessionAction;
-            });
         }
-        return $.when(def).then(function () {
-            if (action) {
-                return self.doAction(action, options);
-            }
-            return self._super.apply(self, callersArguments);
-        });
+        if (action) {
+            return this.doAction(action, options);
+        }
+        return _super.apply(this, arguments);
+
     },
 
     //--------------------------------------------------------------------------
     // Private
     //--------------------------------------------------------------------------
 
-    /**
-     * Instantiates a search view for a given action, and starts it so that it
-     * is ready to be appended to the DOM.
-     *
-     * @private
-     * @param {Object} action
-     * @returns {Deferred} resolved with the search view when it is ready
-     */
-    _createSearchView: function (action) {
-        // if requested, keep the searchview of the current action instead of
-        // creating a new one
-        if (action._keepSearchView) {
-            var currentAction = this.getCurrentAction();
-            if (currentAction) {
-                action.searchView = currentAction.searchView;
-                action.env = currentAction.env; // make those actions share the same env
-                return $.when(currentAction.searchView);
-            } else {
-                // there is not searchview to keep, so reset the flag to false
-                // to ensure that the one that will be created will be correctly
-                // destroyed
-                action._keepSearchView = false;
-            }
-        }
-
-        // AAB: temporarily create a dataset, until the SearchView is refactored
-        // and stops using it
-        var dataset = new data.DataSetSearch(this, action.res_model, action.context, action.domain);
-        if (action.res_id) {
-            dataset.ids.push(action.res_id);
-            dataset.index = 0;
-        }
-
-        // find 'search_default_*' keys in actions's context
-        var searchDefaults = {};
-        _.each(action.context, function (value, key) {
-            var match = /^search_default_(.*)$/.exec(key);
-            if (match) {
-                searchDefaults[match[1]] = value;
-            }
-        });
-        var searchView = new SearchView(this, dataset, action.searchFieldsView, {
-            $buttons: $('<div>'),
-            action: action,
-            disable_custom_filters: action.flags.disableCustomFilters,
-            search_defaults: searchDefaults,
-        });
-
-        return searchView.appendTo(document.createDocumentFragment()).then(function () {
-            action.searchView = searchView;
-            return searchView;
-        });
-    },
     /**
      * Instantiates the controller for a given action and view type, and adds it
      * to the list of controllers in the action.
@@ -193,9 +141,12 @@ ActionManager.include({
      * @param {Object} [viewOptions] dict of options passed to the initialization
      *   of the controller's widget
      * @param {Object} [options]
+     * @param {string} [options.controllerID=false] when the controller has
+     *   previously been lazy-loaded, we want to keep its jsID when loading it
+     * @param {integer} [options.index=0] the controller's index in the stack
      * @param {boolean} [options.lazy=false] set to true to differ the
      *   initialization of the controller's widget
-     * @returns {Deferred<Object>} resolved with the created controller
+     * @returns {Promise<Object>} resolved with the created controller
      */
     _createViewController: function (action, viewType, viewOptions, options) {
         var self = this;
@@ -204,54 +155,64 @@ ActionManager.include({
             // the requested view type isn't specified in the action (e.g.
             // action with list view only, user clicks on a row in the list, it
             // tries to switch to form view)
-            return $.Deferred().reject();
+            return Promise.reject();
         }
 
-        var controllerID = _.uniqueId('controller_');
+        options = options || {};
+        var index = options.index || 0;
+        var controllerID = options.controllerID || _.uniqueId('controller_');
         var controller = {
             actionID: action.jsID,
             className: 'o_act_window', // used to remove the padding in dialogs
+            index: index,
             jsID: controllerID,
             viewType: viewType,
         };
         Object.defineProperty(controller, 'title', {
             get: function () {
                 // handle the case where the widget is lazy loaded
-                return controller.widget ? controller.widget.getTitle() : (action.display_name || action.name);
+                return controller.widget ?
+                       controller.widget.getTitle() :
+                       (action.display_name || action.name);
             },
         });
         this.controllers[controllerID] = controller;
 
-        if (!options || !options.lazy) {
+        if (!options.lazy) {
             // build the view options from different sources
-            viewOptions = _.extend({
+            var flags = action.flags || {};
+            viewOptions = _.extend({}, flags, flags[viewType], viewOptions, {
                 action: action,
-                limit: action.limit,
-            }, action.flags, action.flags[viewType], viewOptions, action.env);
-            // pass the controllerID to the views as an hook for further
-            // communication with trigger_up (e.g. for 'env_updated' event)
-            viewOptions = _.extend(viewOptions, { controllerID: controllerID });
-
+                breadcrumbs: this._getBreadcrumbs(this.controllerStack.slice(0, index)),
+                // pass the controllerID to the views as an hook for further
+                // communication with trigger_up
+                controllerID: controllerID,
+            });
+            var rejection;
             var view = new viewDescr.Widget(viewDescr.fieldsView, viewOptions);
-            var def = $.Deferred();
-            action.controllers[viewType] = def;
-            view.getController(this).then(function (widget) {
-                if (def.state() === 'rejected') {
-                    // the deferred has been rejected meanwhile, meaning that
-                    // the action has been removed, so simply destroy the widget
-                    widget.destroy();
-                } else {
-                    controller.widget = widget;
-                    def.resolve(controller);
-                }
-            }).fail(def.reject.bind(def));
-            def.fail(function () {
+            var def = new Promise(function (resolve, reject) {
+                rejection = reject;
+                view.getController(self).then(function (widget) {
+                    if (def.rejected) {
+                        // the promise has been rejected meanwhile, meaning that
+                        // the action has been removed, so simply destroy the widget
+                        widget.destroy();
+                    } else {
+                        controller.widget = widget;
+                        resolve(controller);
+                    }
+                }).guardedCatch(reject);
+            });
+            // Need to define an reject property to call it into _destroyWindowAction
+            def.reject = rejection;
+            def.guardedCatch(function () {
+                def.rejected = true;
                 delete self.controllers[controllerID];
             });
+            action.controllers[viewType] = def;
         } else {
-            action.controllers[viewType] = $.Deferred().resolve(controller);
+            action.controllers[viewType] = Promise.resolve(controller);
         }
-
         return action.controllers[viewType];
     },
     /**
@@ -263,20 +224,21 @@ ActionManager.include({
      */
     _destroyWindowAction: function (action) {
         var self = this;
-        _.each(action.controllers, function (controllerDef) {
+        for (var c in action.controllers) {
+            var controllerDef = action.controllers[c];
             controllerDef.then(function (controller) {
                 delete self.controllers[controller.jsID];
                 if (controller.widget) {
                     controller.widget.destroy();
                 }
             });
-            // reject the deferred if it is not yet resolved, so that the
-            // controller is correctly destroyed as soon as it is ready, and
-            // its reference is removed
-            controllerDef.reject();
-        });
-        if (action.searchView && !action._keepSearchView) {
-            action.searchView.destroy();
+            // If controllerDef is not resolved yet, reject it so that the
+            // controller will be correctly destroyed as soon as it'll be ready,
+            // and its reference will be removed. Lazy-loaded controllers do
+            // not have a reject function on their promise
+            if (controllerDef.reject) {
+                controllerDef.reject();
+            }
         }
     },
     /**
@@ -288,79 +250,76 @@ ActionManager.include({
      * @param {Object} options @see doAction for details
      * @param {integer} [options.resID] the current res ID
      * @param {string} [options.viewType] the view to open
-     * @returns {Deferred} resolved when the action is appended to the DOM
+     * @returns {Promise} resolved when the action is appended to the DOM
      */
     _executeWindowAction: function (action, options) {
         var self = this;
-
-        if (action.context.active_id || action.context.active_ids) {
-            // we assume that when 'active_id' or 'active_ids' is used in the
-            // context, we are in a 'related' action, so we disable the
-            // searchview's default custom filters
-            action.context.search_disable_custom_filters = true;
-        }
-        action.flags = this._generateActionFlags(action);
-
         return this.dp.add(this._loadViews(action)).then(function (fieldsViews) {
             var views = self._generateActionViews(action, fieldsViews);
-            action._views = action.views;  // save the initial attribute
+            action._views = action.views; // save the initial attribute
             action.views = views;
-            if (fieldsViews.search) {
-                action.searchFieldsView = fieldsViews.search;
-            }
-            action.env = self._generateActionEnv(action, options);
+            action.controlPanelFieldsView = fieldsViews.search;
             action.controllers = {};
 
-            // select the first view to display, and optionally the main view
-            // which will be lazyloaded
-            var firstView = options.viewType && _.findWhere(views, {type: options.viewType});
-            var mainView;
-            if (firstView) {
-                if (!firstView.multiRecord && views[0].multiRecord) {
-                    mainView = views[0];
+            // select the current view to display, and optionally the main view
+            // of the action which will be lazyloaded
+            var curView = options.viewType && _.findWhere(views, {type: options.viewType});
+            var lazyView;
+            if (curView) {
+                if (!curView.multiRecord && views[0].multiRecord) {
+                    lazyView = views[0];
                 }
             } else {
-                firstView = views[0];
+                curView = views[0];
             }
 
             // use mobile-friendly view by default in mobile, if possible
             if (config.device.isMobile) {
-                if (!firstView.isMobileFriendly) {
-                    firstView = self._findMobileView(views, firstView.multiRecord) || firstView;
+                if (!curView.isMobileFriendly) {
+                    curView = self._findMobileView(views, curView.multiRecord) || curView;
                 }
-                if (mainView && !mainView.isMobileFriendly) {
-                    mainView = self._findMobileView(views, mainView.multiRecord) || mainView;
+                if (lazyView && !lazyView.isMobileFriendly) {
+                    lazyView = self._findMobileView(views, lazyView.multiRecord) || lazyView;
                 }
             }
 
-            var def;
-            if (action.flags.hasSearchView) {
-                def = self._createSearchView(action).then(function (searchView) {
-                    // udpate domain, context and groupby in the env
-                    var searchData = searchView.build_search_data();
-                    _.extend(action.env, self._processSearchData(action, searchData));
-                });
+            var lazyViewDef;
+            var lazyControllerID;
+            if (lazyView) {
+                // if the main view is lazy-loaded, its (lazy-loaded) controller is inserted
+                // into the controller stack (so that breadcrumbs can be correctly computed),
+                // so we force clear_breadcrumbs to false so that it won't be removed when the
+                // current controller will be inserted afterwards
+                options.clear_breadcrumbs = false;
+                // this controller being lazy-loaded, this call is actually sync
+                lazyViewDef = self._createViewController(action, lazyView.type, {}, {lazy: true})
+                    .then(function (lazyLoadedController) {
+                        lazyControllerID = lazyLoadedController.jsID;
+                        self.controllerStack.push(lazyLoadedController.jsID);
+                    });
             }
-            return $.when(def).then(function () {
-                var defs = [];
-                defs.push(self._createViewController(action, firstView.type));
-                if (mainView) {
-                    defs.push(self._createViewController(action, mainView.type, {}, {lazy: true}));
-                }
-                return self.dp.add($.when.apply($, defs));
-            }).then(function (controller, lazyLoadedController) {
-                action.controllerID = controller.jsID;
-                return self._executeAction(action, options).done(function () {
-                    if (lazyLoadedController) {
-                        // controller should be placed just before the current one
-                        var index = self.controllerStack.length - 1;
-                        self.controllerStack.splice(index, 0, lazyLoadedController.jsID);
-                        self.controlPanel.update({
-                            breadcrumbs: self._getBreadcrumbs(),
-                        }, {clear: false});
+            return self.dp.add(Promise.resolve(lazyViewDef))
+                .then(function () {
+                    var viewOptions = {
+                        controllerState: options.controllerState,
+                        currentId: options.resID,
+                    };
+                    var curViewDef = self._createViewController(action, curView.type, viewOptions, {
+                        index: self._getControllerStackIndex(options),
+                    });
+                    return self.dp.add(curViewDef);
+                })
+                .then(function (controller) {
+                    action.controllerID = controller.jsID;
+                    return self._executeAction(action, options);
+                })
+                .guardedCatch(function () {
+                    if (lazyControllerID) {
+                        var index = self.controllerStack.indexOf(lazyControllerID);
+                        self.controllerStack = self.controllerStack.slice(0, index);
                     }
+                    self._destroyWindowAction(action);
                 });
-            }).fail(self._destroyWindowAction.bind(self, action));
         });
     },
     /**
@@ -377,49 +336,6 @@ ActionManager.include({
         return _.findWhere(views, {
             isMobileFriendly: true,
             multiRecord: multiRecord,
-        });
-    },
-    /**
-     * Generates the initial environment of a given action, which is a dict
-     * containing information like the model name, the domain, the context...
-     * That information is shared between the controllers of the corresponding
-     * action.
-     *
-     * @private
-     * @param {Object} action
-     * @param {Object} options
-     * @param {integer} [options.resID]
-     * @returns {Object}
-     */
-    _generateActionEnv: function (action, options) {
-        var resID = options.resID || action.res_id;
-        return {
-            modelName: action.res_model,
-            ids: resID ? [resID] : undefined,
-            currentId: resID || undefined,
-            domain: [],
-            context: action.context || {},
-            groupBy: [],
-        };
-    },
-    /**
-     * Generates the flags of a given action.
-     *
-     * @private
-     * @param {Object} action
-     * @returns {Object}
-     */
-    _generateActionFlags: function (action) {
-        var popup = action.target === 'new';
-        var inline = action.target === 'inline';
-        var form = action.views[0][1] === 'form';
-        return _.defaults({}, action.flags, {
-            disableCustomFilters: action.context && action.context.search_disable_custom_filters,
-            footerToButtons: popup,
-            hasSearchView: !(popup && form) && !inline,
-            hasSidebar: !popup && !inline,
-            headless: (popup || inline) && form,
-            mode: (popup || inline || action.target === 'fullscreen') && 'edit',
         });
     },
     /**
@@ -452,8 +368,8 @@ ActionManager.include({
                     viewID: view[0],
                     Widget: View,
                 });
-            } else {
-                console.error("View type '" + viewType + "' is not present in the view registry.");
+            } else if (config.isDebug('assets')) {
+                console.log("View type '" + viewType + "' is not present in the view registry.");
             }
         });
         return views;
@@ -492,74 +408,22 @@ ActionManager.include({
      *
      * @private
      * @param {Object} action
-     * @returns {Deferred}
+     * @returns {Promise}
      */
     _loadViews: function (action) {
+        var inDialog = action.target === 'new';
+        var inline = action.target === 'inline';
         var options = {
             action_id: action.id,
-            toolbar: action.flags.hasSidebar,
+            toolbar: !inDialog && !inline,
         };
         var views = action.views.slice();
-        if (action.flags.hasSearchView) {
+        if (!inline && !(inDialog && action.views[0][1] === 'form')) {
             options.load_filters = true;
             var searchviewID = action.search_view_id && action.search_view_id[0];
             views.push([searchviewID || false, 'search']);
         }
         return this.loadViews(action.res_model, action.context, views, options);
-    },
-    /**
-     * Overrides to handle the 'keepSearchView' option. If set to true, the
-     * search view of the current action will be re-used in the new action, i.e.
-     * the environment (domain, context, groupby) will be shared between both
-     * actions.
-     *
-     * @override
-     */
-    _preprocessAction: function (action, options) {
-        this._super.apply(this, arguments);
-        if (action.type === 'ir.actions.act_window' && options.keepSearchView) {
-            action._keepSearchView = true;
-        }
-    },
-    /**
-     * Processes the search data sent by the search view.
-     *
-     * @private
-     * @param {Object} action
-     * @param {Object} searchData
-     * @param {Object} [searchData.contexts=[]]
-     * @param {Object} [searchData.domains=[]]
-     * @param {Object} [searchData.groupbys=[]]
-     * @returns {Object} an object with keys 'context', 'domain', 'groupBy'
-     */
-    _processSearchData: function (action, searchData) {
-        var contexts = searchData.contexts;
-        var domains = searchData.domains;
-        var groupbys = searchData.groupbys;
-        var action_context = action.context || {};
-        var results = pyUtils.eval_domains_and_contexts({
-            domains: [action.domain || []].concat(domains || []),
-            contexts: [action_context].concat(contexts || []),
-            group_by_seq: groupbys || [],
-            eval_context: this.userContext,
-        });
-        var groupBy = results.group_by.length ?
-                        results.group_by :
-                        (action.context.group_by || []);
-        groupBy = (typeof groupBy === 'string') ? [groupBy] : groupBy;
-
-        if (results.error) {
-            throw new Error(_.str.sprintf(_t("Failed to evaluate search criterions")+": \n%s",
-                            JSON.stringify(results.error)));
-        }
-
-        var context = _.omit(results.context, 'time_ranges');
-
-        return {
-            context: context,
-            domain: results.domain,
-            groupBy: groupBy,
-        };
     },
     /**
      * Overrides to handle the case of 'ir.actions.act_window' actions, i.e.
@@ -598,11 +462,11 @@ ActionManager.include({
             return this.clearUncommittedChanges().then(function () {
                 // AAB: this will be done directly in AbstractAction's restore
                 // function
-                var def;
+                var def = Promise.resolve();
                 if (action.on_reverse_breadcrumb) {
                     def = action.on_reverse_breadcrumb();
                 }
-                return $.when(def).then(function () {
+                return Promise.resolve(def).then(function () {
                     return self._switchController(action, controller.viewType);
                 });
             });
@@ -610,80 +474,101 @@ ActionManager.include({
         return this._super.apply(this, arguments);
     },
     /**
-     * Handles the switch from a controller to another inside the same window
-     * action.
+     * Handles the switch from a controller to another (either inside the same
+     * window action, or from a window action to another using the breadcrumbs).
      *
      * @private
      * @param {Object} controller the controller to switch to
      * @param {Object} [viewOptions]
-     * @return {Deferred} resolved when the new controller is in the DOM
+     * @return {Promise} resolved when the new controller is in the DOM
      */
     _switchController: function (action, viewType, viewOptions) {
         var self = this;
+        var view = _.findWhere(action.views, {type: viewType});
+        if (!view) {
+            // can't switch to an unknown view
+            return Promise.reject();
+        }
+        var currentController = this.getCurrentController();
+        var index;
+        if (currentController.actionID !== action.jsID) {
+            // the requested controller is from another action, so we went back
+            // to a previous action using the breadcrumbs
+            var controller = _.findWhere(this.controllers, {
+                actionID: action.jsID,
+                viewType: viewType,
+            });
+            index = _.indexOf(this.controllerStack, controller.jsID);
+        } else {
+            // the requested controller is from the same action as the current
+            // one, so we either
+            //   1) go one step back from a mono record view to a multi record
+            //      one using the breadcrumbs
+            //   2) or we switched from a view to another  using the view
+            //      switcher
+            //   3) or we opened a record from a multi record view
+            if (view.multiRecord) {
+                // cases 1) and 2) (with multi record views): replace the first
+                // controller linked to the same action in the stack
+                index = _.findIndex(this.controllerStack, function (controllerID) {
+                    return self.controllers[controllerID].actionID === action.jsID;
+                });
+            } else if (!_.findWhere(action.views, {type: currentController.viewType}).multiRecord) {
+                // case 2) (with mono record views): replace the last
+                // controller by the new one if they are from the same action
+                // and if they both are mono record
+                index = this.controllerStack.length - 1;
+            } else {
+                // case 3): insert the controller on the top of the controller
+                // stack
+                index = this.controllerStack.length;
+            }
+        }
 
-        var newController = function () {
+        var newController = function (controllerID) {
+            var options = {
+                controllerID: controllerID,
+                index: index,
+            };
             return self
-                ._createViewController(action, viewType, viewOptions)
+                ._createViewController(action, viewType, viewOptions, options)
                 .then(function (controller) {
-                    // AAB: this will be moved to the Controller
-                    var widget = controller.widget;
-                    if (widget.need_control_panel) {
-                        // set the ControlPanel bus on the controller to allow it to
-                        // communicate its status
-                        widget.set_cp_bus(self.controlPanel.get_bus());
-                    }
                     return self._startController(controller);
                 });
         };
 
         var controllerDef = action.controllers[viewType];
-        if (!controllerDef || controllerDef.state() === 'rejected') {
-            // if the controllerDef is rejected, it probably means that the js
-            // code or the requests made to the server crashed.  In that case,
-            // if we reuse the same deferred, then the switch to the view is
-            // definitely blocked.  We want to use a new controller, even though
-            // it is very likely that it will recrash again.  At least, it will
-            // give more feedback to the user, and it could happen that one
-            // record crashes, but not another.
-            controllerDef = newController();
-        } else {
+        if (controllerDef) {
             controllerDef = controllerDef.then(function (controller) {
                 if (!controller.widget) {
-                    // lazy loaded -> load it now
-                    return newController().done(function (newController) {
-                        // replace the old controller (without widget) by the new one
-                        var index = self.controllerStack.indexOf(controller.jsID);
-                        self.controllerStack[index] = newController.jsID;
-                        delete self.controllers[controller.jsID];
-                    });
+                    // lazy loaded -> load it now (with same jsID)
+                    return newController(controller.jsID);
                 } else {
-                    viewOptions = _.extend(viewOptions || {}, action.env);
-                    return $.when(controller.widget.willRestore()).then(function () {
+                    return Promise.resolve(controller.widget.willRestore()).then(function () {
+                        viewOptions = _.extend({}, viewOptions, {
+                            breadcrumbs: self._getBreadcrumbs(self.controllerStack.slice(0, index)),
+                        });
                         return controller.widget.reload(viewOptions).then(function () {
                             return controller;
                         });
                     });
                 }
+            }, function () {
+                // if the controllerDef is rejected, it probably means that the js
+                // code or the requests made to the server crashed.  In that case,
+                // if we reuse the same promise, then the switch to the view is
+                // definitely blocked.  We want to use a new controller, even though
+                // it is very likely that it will recrash again.  At least, it will
+                // give more feedback to the user, and it could happen that one
+                // record crashes, but not another.
+                return newController();
             });
+        } else {
+            controllerDef = newController();
         }
 
         return this.dp.add(controllerDef).then(function (controller) {
-            var view = _.findWhere(action.views, {type: viewType});
-            var currentController = self.getCurrentController();
-            var index;
-            if (currentController.actionID !== action.jsID) {
-                index = _.indexOf(self.controllerStack, controller.jsID);
-            } else if (view.multiRecord) {
-                // remove other controllers linked to the same action from the stack
-                index = _.findIndex(self.controllerStack, function (controllerID) {
-                    return self.controllers[controllerID].actionID === action.jsID;
-                });
-            } else if (!_.findWhere(action.views, {type: currentController.viewType}).multiRecord) {
-                // replace the last controller by the new one if they are from the
-                // same action and if they both are mono record
-                index = self.controllerStack.length - 1;
-            }
-            return self._pushController(controller, {index: index});
+            return self._pushController(controller);
         });
     },
 
@@ -691,18 +576,6 @@ ActionManager.include({
     // Handlers
     //--------------------------------------------------------------------------
 
-    /**
-     * @private
-     * @param {OdooEvent} ev
-     * @param {string} ev.data.controllerID
-     * @param {Object} ev.data.env
-     */
-    _onEnvUpdated: function (ev) {
-        ev.stopPropagation();
-        var controller = this.controllers[ev.data.controllerID];
-        var action = this.actions[controller.actionID];
-        _.extend(action.env, ev.data.env);
-    },
     /**
      * Handler for event 'execute_action', which is typically called when a
      * button is clicked. The button may be of type 'object' (call a given
@@ -728,11 +601,14 @@ ActionManager.include({
         var env = ev.data.env;
         var context = new Context(env.context, actionData.context || {});
         var recordID = env.currentID || null; // pyUtils handles null value, not undefined
-        var def = $.Deferred();
+        var def;
 
         // determine the action to execute according to the actionData
         if (actionData.special) {
-            def = $.when({type: 'ir.actions.act_window_close', infos: 'special'});
+            def = Promise.resolve({
+                type: 'ir.actions.act_window_close',
+                infos: { special: true },
+            });
         } else if (actionData.type === 'object') {
             // call a Python Object method, which may return an action to execute
             var args = recordID ? [[recordID]] : [env.resIDs];
@@ -746,11 +622,11 @@ ActionManager.include({
                     console.error("Could not JSON.parse arguments", actionData.args);
                 }
             }
-            args.push(context.eval());
             def = this._rpc({
                 route: '/web/dataset/call_button',
                 params: {
                     args: args,
+                    kwargs: {context: context.eval()},
                     method: actionData.name,
                     model: env.model,
                 },
@@ -762,13 +638,15 @@ ActionManager.include({
                 active_ids: env.resIDs,
                 active_id: recordID,
             }));
+        } else {
+            def = Promise.reject();
         }
 
         // use the DropPrevious to prevent from executing the handler if another
         // request (doAction, switchView...) has been done meanwhile ; execute
         // the fail handler if the 'call_button' or 'loadAction' failed but not
         // if the request failed due to the DropPrevious,
-        def.fail(ev.data.on_fail);
+        def.guardedCatch(ev.data.on_fail);
         this.dp.add(def).then(function (action) {
             // show effect if button have effect attribute
             // rainbowman can be displayed from two places: from attribute on a button or from python
@@ -811,68 +689,9 @@ ActionManager.include({
                 };
             }
             var options = {on_close: ev.data.on_closed};
+            action.flags = _.extend({}, action.flags, {searchPanelDefaultNoFilter: true});
             return self.doAction(action, options).then(ev.data.on_success, ev.data.on_fail);
         });
-    },
-    /**
-     * Handles a context request: provides to the caller the context of the
-     * current controller.
-     *
-     * @private
-     * @param {OdooEvent} ev
-     * @param {function} ev.data.callback used to send the requested context
-     */
-    _onGetControllerContext: function (ev) {
-        ev.stopPropagation();
-        var currentController = this.getCurrentController();
-        var context = currentController && currentController.widget.getContext();
-        ev.data.callback(context || {});
-    },
-    /**
-     * Handles a request to add/remove search view filters.
-     *
-     * @param {OdooEvent} ev
-     * @param {string} ev.data.controllerID
-     * @param {Array[Object]} [ev.data.newFilters]
-     * @param {Array[Object]} [ev.data.filtersToRemove]
-     * @param {function} ev.data.callback called with the added filters as arg
-     */
-    _onUpdateFilters: function (ev) {
-        var controller = this.controllers[ev.data.controllerID];
-        var action = this.actions[controller.actionID];
-        var data = ev.data;
-        var addedFilters = action.searchView.updateFilters(data.newFilters, data.filtersToRemove);
-        data.callback(addedFilters);
-    },
-    /**
-     * Called mainly from the control panel when the focus should be given to a controller
-     * 
-     * @param {OdooEvent} event
-     * @private
-     */
-    _onNavigationMove : function(event) {
-        switch(event.data.direction) {
-            case 'down' :
-                var currentController = this.getCurrentController().widget;
-                currentController.giveFocus();
-                event.stopPropagation();
-                break;
-        }
-    },
-    /**
-     * Called when there is a change in the search view, so the current action's
-     * environment needs to be updated with the new domain, context and groupby.
-     *
-     * @private
-     * @param {OdooEvent} ev
-     */
-    _onSearch: function (ev) {
-        ev.stopPropagation();
-        // AAB: the id of the correct controller should be given in data
-        var currentController = this.getCurrentController();
-        var action = this.actions[currentController.actionID];
-        _.extend(action.env, this._processSearchData(action, ev.data));
-        currentController.widget.reload(_.extend({offset: 0}, action.env));
     },
     /**
      * @private
@@ -893,13 +712,13 @@ ActionManager.include({
             // only switch to the requested view if the controller that
             // triggered the request is the current controller
             var action = this.actions[currentController.actionID];
-            if ('res_id' in ev.data) {
-                action.env.currentId = ev.data.res_id;
-            }
-            var options = {};
-            if (viewType === 'form' && !action.env.currentId) {
-                options.mode = 'edit';
-            } else if (ev.data.mode) {
+            var currentControllerState = currentController.widget.exportState();
+            action.controllerState = _.extend({}, action.controllerState, currentControllerState);
+            var options = {
+                controllerState: action.controllerState,
+                currentId: ev.data.res_id,
+            };
+            if (ev.data.mode) {
                 options.mode = ev.data.mode;
             }
             this._switchController(action, viewType, options);

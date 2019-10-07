@@ -139,7 +139,7 @@
                 <sheet>
                     <notebook>
                         <page>
-                            <field name="line_ids" widget="one2many_list" context="{'line_ids': line_ids}">
+                            <field name="line_ids" widget="one2many" context="{'line_ids': line_ids}">
                                 <tree editable="bottom">
                                     <field name="dummy"/>
                                     <field name="flag" invisible="1" readonly="1"/>
@@ -162,6 +162,21 @@
                     <field name="many_to_one_ids"/>
                 </sheet>
             </form>
+        </field>
+    </record>
+
+    <record id="o2m_modifier" model="ir.ui.view">
+        <field name="name">Modifier check</field>
+        <field name="model">test_testing_utilities.parent</field>
+        <field name="inherit_id" ref="o2m_parent"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <field name="subs" position="inside">
+                <form>
+                    <field name="value" attrs="{'readonly': [('v', '!=', False)]}"/>
+                    <field name="v"/>
+                </form>
+            </field>
         </field>
     </record>
 </odoo>

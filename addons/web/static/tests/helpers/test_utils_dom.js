@@ -1,5 +1,7 @@
-odoo.define('web.test_utils_dom', function () {
+odoo.define('web.test_utils_dom', function (require) {
 "use strict";
+
+var concurrency = require('web.concurrency');
 
 /**
  * DOM Test Utils
@@ -21,8 +23,8 @@ odoo.define('web.test_utils_dom', function () {
  *   merged.  This is not the default as of now, because handlers are triggered
  *   synchronously, which is not the same as the 'reality'.
  *
- * @param {jqueryElement} $el
- * @param {jqueryElement} $to
+ * @param {jqueryElement|HTMLElement} $el
+ * @param {jqueryElement|HTMLElement} $to
  * @param {Object} [options]
  * @param {string|Object} [options.position='center'] target position:
  *   can either be one of {'top', 'bottom', 'left', 'right'} or
@@ -34,8 +36,22 @@ odoo.define('web.test_utils_dom', function () {
  * @param {boolean} [options.withTrailingClick=false] if true, this utility
  *   function will also trigger a click on the target after the mouseup event
  *   (this is actually what happens when a drag and drop operation is done)
+ * @param {jQuery|HTMLElement} [options.mouseenterTarget=undefined] target of the mouseenter event
+ * @param {jQuery|HTMLElement} [options.mousedownTarget=undefined] target of the mousedown event
+ * @param {jQuery|HTMLElement} [options.mousemoveTarget=undefined] target of the mousemove event
+ * @param {jQuery|HTMLElement} [options.mouseupTarget=undefined] target of the mouseup event
+ * @param {jQuery|HTMLElement} [options.ctrlKey=undefined] if the ctrl key should be considered pressed at the time of mouseup
+ * @returns {Promise}
  */
 function dragAndDrop($el, $to, options) {
+    let el = null;
+    if ($el instanceof EventTarget) {
+        el = $el;
+        $el = $(el);
+    }
+    if ($to instanceof EventTarget) {
+        $to = $($to);
+    }
     options = options || {};
     var position = options.position || 'center';
     var elementCenter = $el.offset();
@@ -65,42 +81,44 @@ function dragAndDrop($el, $to, options) {
         toOffset.left += bound.left;
         toOffset.top += bound.top;
     }
-    $el.trigger($.Event("mouseenter"));
+    triggerEvent(options.mouseenterTarget || el || $el, 'mouseenter');
     if (!(options.continueMove)) {
         elementCenter.left += $el.outerWidth() / 2;
         elementCenter.top += $el.outerHeight() / 2;
 
-        $el.trigger($.Event("mousedown", {
+        triggerEvent(options.mousedownTarget || el || $el, 'mousedown', {
             which: 1,
             pageX: elementCenter.left,
             pageY: elementCenter.top
-        }));
+        });
     }
 
-    $el.trigger($.Event("mousemove", {
+    triggerEvent(options.mousemoveTarget || el || $el, 'mousemove', {
         which: 1,
         pageX: toOffset.left,
         pageY: toOffset.top
-    }));
+    });
 
     if (!options.disableDrop) {
-        $el.trigger($.Event("mouseup", {
+        triggerEvent(options.mouseupTarget || el || $el, 'mouseup', {
             which: 1,
             pageX: toOffset.left,
-            pageY: toOffset.top
-        }));
+            pageY: toOffset.top,
+            ctrlKey: options.ctrlKey,
+        });
         if (options.withTrailingClick) {
-            $el.click();
+            triggerEvent(options.mouseupTarget || el || $el, 'click');
         }
     } else {
         // It's impossible to drag another element when one is already
         // being dragged. So it's necessary to finish the drop when the test is
         // over otherwise it's impossible for the next tests to drag and
         // drop elements.
-        $el.on("remove", function () {
-            $el.trigger($.Event("mouseup"));
+        $el.on('remove', function () {
+            triggerEvent($el, 'mouseup');
         });
     }
+    return concurrency.delay(0);
 }
 
 /**
@@ -108,16 +126,24 @@ function dragAndDrop($el, $to, options) {
  * sometimes necessary because the basic way to trigger an event (such as
  * $el.trigger('mousemove')); ) is too crude for some uses.
  *
- * @param {jqueryElement} $el
+ * @param {jQuery|HTMLElement} $el
  * @param {string} type a mouse event type, such as 'mousedown' or 'mousemove'
+ * @returns {Promise}
  */
 function triggerMouseEvent($el, type) {
-    var pos = $el.offset();
-    var e = new $.Event(type);
-    e.pageX = e.layerX = e.screenX = pos.left;
-    e.pageY = e.layerY = e.screenY = pos.top;
-    e.which = 1;
-    $el.trigger(e);
+    const el = $el instanceof jQuery ? $el[0] : $el;
+    if (!el) {
+        throw new Error(`no target found to trigger MouseEvent`);
+    }
+    const rect = el.getBoundingClientRect();
+    // little fix since it seems on chrome, it triggers 1px too on the left
+    const left = rect.x + 1;
+    const top = rect.y;
+    return triggerEvent($el, type, {
+        which: 1,
+        pageX: left, layerX: left, screenX: left,
+        pageY: top, layerY: top, screenY: top,
+    });
 }
 
 /**
@@ -128,6 +154,7 @@ function triggerMouseEvent($el, type) {
  * @param {integer} x
  * @param {integer} y
  * @param {string} type a mouse event type, such as 'mousedown' or 'mousemove'
+ * @returns {HTMLElement}
  */
 function triggerPositionalMouseEvent(x, y, type) {
     var ev = document.createEvent("MouseEvent");
@@ -149,24 +176,21 @@ function triggerPositionalMouseEvent(x, y, type) {
  * simulate a keypress event for a given character
  *
  * @param {string} char the character, or 'ENTER'
+ * @returns {Promise}
  */
 function triggerKeypressEvent(char) {
     var keycode;
     if (char === "Enter") {
         keycode = $.ui.keyCode.ENTER;
+    } else if (char === "Tab") {
+        keycode = $.ui.keyCode.TAB;
     } else {
         keycode = char.charCodeAt(0);
     }
-    return $('body').trigger($.Event('keypress', { which: keycode, keyCode: keycode }));
-}
-
-/**
- * Opens the datepicker of a given element.
- *
- * @param {jQuery} $datepickerEl element to which a datepicker is attached
- */
-function openDatepicker($datepickerEl) {
-    $datepickerEl.find('.o_datepicker_input').trigger('focus.datetimepicker');
+    return triggerEvent(document.body, 'keypress', {
+        keyCode: keycode,
+        which: keycode,
+    });
 }
 
 /**
@@ -177,37 +201,48 @@ function openDatepicker($datepickerEl) {
  * @param {Object} [options]
  * @param {boolean} [options.first=false] if true, clicks on the first element
  * @param {boolean} [options.last=false] if true, clicks on the last element
+ * @param {boolean} [options.allowInvisible=false] if true, clicks on the
+ *   element event if it is invisible
+ * @param {boolean} [options.shouldTriggerClick=false] if true, trigger the
+ *   click event without calling the function click of jquery
+ * @returns {Promise}
  */
 function click(el, options) {
     options = options || {};
     var matches = typeof el === 'string' ? $(el) : el;
-    var selectorMsg = el.selector ? `(selector: ${el.selector})` : '';
+    var selectorMsg = typeof el === 'string' ? `(selector: ${el})` : '';
     if (!matches.filter) { // it might be an array of dom elements
         matches = $(matches);
     }
+    var validMatches = options.allowInvisible ? matches : matches.filter(':visible');
 
-    var visibleMatches = matches.filter(':visible');
     if (options.first) {
-        if (visibleMatches.length === 1) {
+        if (validMatches.length === 1) {
             throw new Error(`There should be more than one visible target ${selectorMsg}.  If` +
                 ' you are sure that there is exactly one target, please use the ' +
                 'click function instead of the clickFirst function');
         }
-        visibleMatches = visibleMatches.first();
+        validMatches = validMatches.first();
     } else if (options.last) {
-        if (visibleMatches.length === 1) {
+        if (validMatches.length === 1) {
             throw new Error(`There should be more than one visible target ${selectorMsg}.  If` +
                 ' you are sure that there is exactly one target, please use the ' +
                 'click function instead of the clickLast function');
         }
-        visibleMatches = visibleMatches.last();
+        validMatches = validMatches.last();
     }
-    if (visibleMatches.length === 0 && matches.length > 0) {
+    if (validMatches.length === 0 && matches.length > 0) {
         throw new Error(`Element to click on is not visible ${selectorMsg}`);
-    } else if (visibleMatches.length !== 1) {
-        throw new Error(`Found ${visibleMatches.length} elements to click on, instead of 1 ${selectorMsg}`);
+    } else if (validMatches.length !== 1) {
+        throw new Error(`Found ${validMatches.length} elements to click on, instead of 1 ${selectorMsg}`);
     }
-    visibleMatches.click();
+    if (options.shouldTriggerClick) {
+        return triggerEvent(validMatches, 'click');
+    } else {
+        validMatches.click();
+    }
+
+    return concurrency.delay(0);
 }
 
 /**
@@ -216,9 +251,14 @@ function click(el, options) {
  * use the click helper instead.
  *
  * @param {string|NodeList|jQuery} el (if string: it is a (jquery) selector)
+ * @param {boolean} [options.allowInvisible=false] if true, clicks on the
+ *   element event if it is invisible
+ * @param {boolean} [options.shouldTriggerClick=false] if true, trigger the
+ *   click event without calling the function click of jquery
+ * @returns {Promise}
  */
-function clickFirst(el) {
-    click(el, {first: true});
+function clickFirst(el, options) {
+    return click(el, _.extend({}, options, {first: true}));
 }
 
 /**
@@ -227,10 +267,75 @@ function clickFirst(el) {
  * use the click helper instead.
  *
  * @param {string|NodeList|jQuery} el
+ * @param {boolean} [options.allowInvisible=false] if true, clicks on the
+ *   element event if it is invisible
+ * @param {boolean} [options.shouldTriggerClick=false] if true, trigger the
+ *   click event without calling the function click of jquery
+ * @returns {Promise}
  */
-function clickLast(el) {
-    click(el, {last: true});
+function clickLast(el, options) {
+    return click(el, _.extend({}, options, {last: true}));
 }
+
+/**
+ * Trigger events on the specified target
+ * @param {jQuery|HTMLElement} $el should target a single dom node
+ * @param {string[]} events the events you want to trigger
+ * @returns {Promise}
+ */
+function triggerEvents($el, events) {
+    if ($el instanceof jQuery) {
+        if ($el.length !== 1) {
+            throw new Error(`target has length ${$el.length} instead of 1`);
+        }
+    } else if (!($el instanceof EventTarget)) {
+        throw new Error(`target is neither a jQuery element nor an HTML element`);
+    }
+    if (typeof events === 'string') {
+        events = [events];
+    }
+    return events.reduce((previous, event) => {
+        return previous.then(() => triggerEvent($el, event));
+    }, Promise.resolve());
+}
+
+/**
+ * Trigger an event on the specified target.
+ * This function will dispatch a native event to an HTMLElement or a
+ * jQuery event to a jQuery object.
+ * @param {jQuery|HTMLElement} $el event target.
+ * @param {string} type event type
+ * @param {Object} [options] event attributes
+ * @returns {Promise}
+ */
+function triggerEvent($el, type, options={}) {
+    if ($el instanceof EventTarget) {
+        const event = new Event(type);
+        Object.assign(event, options);
+        Object.defineProperty(event, 'target', {
+            writable: false,
+            value: $el,
+        });
+        $el.dispatchEvent(event);
+    } else {
+        const event = Object.keys(options).length ?
+            $.Event(type, options) :
+            type;
+        $el.trigger(event);
+    }
+    return concurrency.delay(0);
+}
+
+
+/**
+ * Opens the datepicker of a given element.
+ *
+ * @param {jQuery} $datepickerEl element to which a datepicker is attached
+ */
+function openDatepicker($datepickerEl) {
+    return click($datepickerEl.find('.o_datepicker_input'));
+}
+
 
 return {
     triggerKeypressEvent: triggerKeypressEvent,
@@ -241,6 +346,8 @@ return {
     click: click,
     clickFirst: clickFirst,
     clickLast: clickLast,
+    triggerEvents: triggerEvents,
+    triggerEvent: triggerEvent,
 };
 
 });

@@ -10,6 +10,7 @@ var FormRenderer = require('web.FormRenderer');
 var view_registry = require('web.view_registry');
 
 var QWeb = core.qweb;
+var _t = core._t;
 
 var BaseSettingRenderer = FormRenderer.extend({
     events: _.extend({}, FormRenderer.prototype.events, {
@@ -24,14 +25,28 @@ var BaseSettingRenderer = FormRenderer.extend({
     },
 
     start: function () {
-        this._super.apply(this, arguments);
+        var prom = this._super.apply(this, arguments);
         if (config.device.isMobile) {
             core.bus.on("DOM_updated", this, function () {
                 this._moveToTab(this.currentIndex || this._currentAppIndex());
             });
         }
+        return prom;
     },
 
+    /**
+     * @override
+     * overridden to show a message, informing user that there are changes
+     */
+    confirmChange: function () {
+        var self = this;
+        return this._super.apply(this, arguments).then(function () {
+            if (!self.$(".o_dirty_warning").length) {
+                self.$('.o_statusbar_buttons')
+                    .append($('<span/>', {text: _t("Unsaved changes"), class: 'text-muted ml-2 o_dirty_warning'}))
+            }
+        });
+    },
     /**
      * @override
      */
@@ -180,19 +195,6 @@ var BaseSettingRenderer = FormRenderer.extend({
         }));
     },
     /**
-     * add placeholder attr in input element
-     * @override
-     * @private
-     * @param {jQueryElement} $el
-     * @param {Object} node
-     */
-    _handleAttributes: function ($el, node) {
-        this._super.apply(this, arguments);
-        if (node.attrs.placeholder) {
-            $el.attr('placeholder', node.attrs.placeholder);
-        }
-    },
-    /**
      * move to selected setting
      *
      * @private
@@ -266,14 +268,16 @@ var BaseSettingRenderer = FormRenderer.extend({
     },
 
     _render: function () {
-        var res = this._super.apply(this, arguments);
-        this._initModules();
-        this._renderLeftPanel();
-        this._initSearch();
-        if (config.device.isMobile) {
-            this._enableSwipe();
-        }
-        return res;
+        var self = this;
+        return this._super.apply(this, arguments).then(function() {
+            self._initModules();
+            self._renderLeftPanel();
+            self._initSearch();
+            
+            if (config.device.isMobile) {
+                self._enableSwipe();
+            }
+        });
     },
 
     _renderLeftPanel: function () {
@@ -349,6 +353,9 @@ var BaseSettingRenderer = FormRenderer.extend({
 });
 
 var BaseSettingController = FormController.extend({
+    custom_events: _.extend({}, FormController.prototype.custom_events, {
+        button_clicked: '_onButtonClicked',
+    }),
     init: function () {
         this._super.apply(this, arguments);
         this.disableAutofocus = true;
@@ -363,6 +370,28 @@ var BaseSettingController = FormController.extend({
     willRestore: function () {
         this.mode = 'edit';
     },
+
+    //--------------------------------------------------------------------------
+    // Handlers
+    //--------------------------------------------------------------------------
+
+    /**
+     * @private
+     */
+    _onButtonClicked: function (ev) {
+        var self = this;
+        if (ev.data.attrs.name !== 'execute' && ev.data.attrs.name !== 'cancel') {
+            var recordID = ev.data.recordID;
+            var _super = this._super;
+            var args = arguments;
+            this._discardChanges(recordID).then(function () {
+                _super.apply(self, args);
+            });
+        } else {
+            this._super.apply(this, arguments);
+        }
+    },
+
 });
 
 var BaseSettingsModel = BasicModel.extend({

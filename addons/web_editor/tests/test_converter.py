@@ -2,17 +2,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import textwrap
-import unittest
 
 from lxml import etree, html
 from lxml.builder import E
 
 from odoo.tests import common
+from odoo.tests.common import BaseCase
 from odoo.addons.web_editor.models.ir_qweb import html_to_text
 
 
-@common.tagged('standard', 'at_install')
-class TestHTMLToText(unittest.TestCase):
+class TestHTMLToText(BaseCase):
     def test_rawstring(self):
         self.assertEqual(
             "foobar",
@@ -157,9 +156,6 @@ class TestConvertBack(common.TransactionCase):
     def test_char(self):
         self.field_roundtrip('char', "foo bar")
         self.field_roundtrip('char', "ⒸⓄⓇⒼⒺ")
-
-    def test_selection(self):
-        self.field_roundtrip('selection', 3)
 
     def test_selection_str(self):
         self.field_roundtrip('selection_str', 'B')

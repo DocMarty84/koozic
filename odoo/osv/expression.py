@@ -123,6 +123,7 @@ from zlib import crc32
 from datetime import date, datetime, time
 import odoo.modules
 from odoo.tools import pycompat
+from odoo.tools.misc import get_lang
 from ..models import MAGIC_COLUMNS, BaseModel
 import odoo.tools as tools
 
@@ -134,8 +135,8 @@ AND_OPERATOR = '&'
 DOMAIN_OPERATORS = (NOT_OPERATOR, OR_OPERATOR, AND_OPERATOR)
 
 # List of available term operators. It is also possible to use the '<>'
-# operator, which is strictly the same as '!='; the later should be prefered
-# for consistency. This list doesn't contain '<>' as it is simpified to '!='
+# operator, which is strictly the same as '!='; the later should be preferred
+# for consistency. This list doesn't contain '<>' as it is simplified to '!='
 # by the normalize_operator() function (so later part of the code deals with
 # only one representation).
 # Internals (i.e. not available to the user) 'inselect' and 'not inselect'
@@ -405,7 +406,7 @@ def normalize_leaf(element):
 
 def is_operator(element):
     """ Test whether an object is a valid domain operator. """
-    return isinstance(element, pycompat.string_types) and element in DOMAIN_OPERATORS
+    return isinstance(element, str) and element in DOMAIN_OPERATORS
 
 
 def is_leaf(element, internal=False):
@@ -426,7 +427,7 @@ def is_leaf(element, internal=False):
     return (isinstance(element, tuple) or isinstance(element, list)) \
         and len(element) == 3 \
         and element[1] in INTERNAL_OPS \
-        and ((isinstance(element[0], pycompat.string_types) and element[0])
+        and ((isinstance(element[0], str) and element[0])
              or tuple(element) in (TRUE_LEAF, FALSE_LEAF))
 
 
@@ -713,7 +714,7 @@ class expression(object):
                 :var obj comodel: relational model of field (field.comodel)
                     (res_partner.bank_ids -> res.partner.bank)
         """
-        cr, uid, context = self.root_model.env.args
+        cr, uid, context, su = self.root_model.env.args
 
         def to_ids(value, comodel, leaf):
             """ Normalize a single id or name, or a list of those, into a list of ids
@@ -725,11 +726,11 @@ class expression(object):
                         return the list of related ids
             """
             names = []
-            if isinstance(value, pycompat.string_types):
+            if isinstance(value, str):
                 names = [value]
-            elif value and isinstance(value, (tuple, list)) and all(isinstance(item, pycompat.string_types) for item in value):
+            elif value and isinstance(value, (tuple, list)) and all(isinstance(item, str) for item in value):
                 names = value
-            elif isinstance(value, pycompat.integer_types):
+            elif isinstance(value, int):
                 if not value:
                     # given this nonsensical domain, it is generally cheaper to
                     # interpret False as [], so that "X child_of False" will
@@ -889,7 +890,7 @@ class expression(object):
             elif len(path) > 1 and field.store and field.type == 'one2many' and field.auto_join:
                 # res_partner.id = res_partner__bank_ids.partner_id
                 leaf.add_join_context(comodel, 'id', field.inverse_name, path[0])
-                domain = field.domain(model) if callable(field.domain) else field.domain
+                domain = field.get_domain_list(model)
                 push(create_substitution_leaf(leaf, (path[1], operator, right), comodel))
                 if domain:
                     domain = normalize_domain(domain)
@@ -949,15 +950,13 @@ class expression(object):
                     push(create_substitution_leaf(leaf, dom_leaf, model))
 
             elif field.type == 'one2many':
-                domain = field.domain
-                if callable(domain):
-                    domain = domain(model)
+                domain = field.get_domain_list(model)
                 inverse_is_int = comodel._fields[field.inverse_name].type == 'integer'
                 unwrap_inverse = (lambda ids: ids) if inverse_is_int else (lambda recs: recs.ids)
 
                 if right is not False:
                     # determine ids2 in comodel
-                    if isinstance(right, pycompat.string_types):
+                    if isinstance(right, str):
                         op2 = (TERM_OPERATORS_NEGATION[operator]
                                if operator in NEGATIVE_TERM_OPERATORS else operator)
                         ids2 = [x[0] for x in comodel.name_search(right, domain or [], op2, limit=None)]
@@ -1014,10 +1013,8 @@ class expression(object):
 
                 elif right is not False:
                     # determine ids2 in comodel
-                    if isinstance(right, pycompat.string_types):
-                        domain = field.domain
-                        if callable(domain):
-                            domain = domain(model)
+                    if isinstance(right, str):
+                        domain = field.get_domain_list(model)
                         op2 = (TERM_OPERATORS_NEGATION[operator]
                                if operator in NEGATIVE_TERM_OPERATORS else operator)
                         ids2 = [x[0] for x in comodel.name_search(right, domain or [], op2, limit=None)]
@@ -1066,8 +1063,8 @@ class expression(object):
                             res_ids.append(False)  # TODO this should not be appended if False was in 'right'
                         return left, 'in', res_ids
                     # resolve string-based m2o criterion into IDs
-                    if isinstance(right, pycompat.string_types) or \
-                            right and isinstance(right, (tuple, list)) and all(isinstance(item, pycompat.string_types) for item in right):
+                    if isinstance(right, str) or \
+                            right and isinstance(right, (tuple, list)) and all(isinstance(item, str) for item in right):
                         push(create_substitution_leaf(leaf, _get_expression(comodel, left, right, operator), model))
                     else:
                         # right == [] or right == False and all other cases are handled by __leaf_to_sql()
@@ -1099,7 +1096,7 @@ class expression(object):
 
             else:
                 if field.type == 'datetime' and right:
-                    if isinstance(right, pycompat.string_types) and len(right) == 10:
+                    if isinstance(right, str) and len(right) == 10:
                         if operator in ('>', '<='):
                             right += ' 23:59:59'
                         else:
@@ -1149,7 +1146,7 @@ class expression(object):
 
                     params = (
                         model._name + ',' + left,
-                        model.env.lang or 'en_US',
+                        get_lang(model.env).code,
                         'model',
                         right,
                     )
@@ -1268,11 +1265,11 @@ class expression(object):
             column = '%s.%s' % (table_alias, _quote(left))
             query = '(%s %s %s)' % (unaccent(column + cast), sql_operator, unaccent(format))
 
+            if (need_wildcard and not right) or (right and operator in NEGATIVE_TERM_OPERATORS):
+                query = '(%s OR %s."%s" IS NULL)' % (query, table_alias, left)
+
             if need_wildcard:
-                native_str = pycompat.to_native(right)
-                if not native_str:
-                    query = '(%s OR %s."%s" IS NULL)' % (query, table_alias, left)
-                params = ['%%%s%%' % native_str]
+                params = ['%%%s%%' % pycompat.to_text(right)]
             else:
                 field = model._fields[left]
                 params = [field.convert_to_column(right, model, validate=False)]

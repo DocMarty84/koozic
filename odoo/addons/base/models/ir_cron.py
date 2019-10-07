@@ -62,6 +62,7 @@ class ir_cron(models.Model):
     numbercall = fields.Integer(string='Number of Calls', default=1, help='How many times the method is called,\na negative number indicates no limit.')
     doall = fields.Boolean(string='Repeat Missed', help="Specify if missed occurrences should be executed when the server restarts.")
     nextcall = fields.Datetime(string='Next Execution Date', required=True, default=fields.Datetime.now, help="Next planned execution date for this job.")
+    lastcall = fields.Datetime(string='Last Execution Date', help="Previous time the cron ran successfully, provided to the job through the context on the `lastcall` key")
     priority = fields.Integer(default=5, help='The priority of the job, as an integer: 0 means higher priority, 10 means lower priority.')
 
     @api.model
@@ -69,11 +70,10 @@ class ir_cron(models.Model):
         values['usage'] = 'ir_cron'
         return super(ir_cron, self).create(values)
 
-    @api.multi
     def method_direct_trigger(self):
         self.check_access_rights('write')
         for cron in self:
-            self.sudo(user=cron.user_id.id).ir_actions_server_id.run()
+            self.with_user(cron.user_id).ir_actions_server_id.run()
         return True
 
     @api.model
@@ -121,7 +121,9 @@ class ir_cron(models.Model):
         """
         try:
             with api.Environment.manage():
-                cron = api.Environment(job_cr, job['user_id'], {})[cls._name]
+                cron = api.Environment(job_cr, job['user_id'], {
+                    'lastcall': fields.Datetime.from_string(job['lastcall'])
+                })[cls._name]
                 # Use the user's timezone to compare and compute datetimes,
                 # otherwise unexpected results may appear. For instance, adding
                 # 1 month in UTC to July 1st at midnight in GMT+2 gives July 30
@@ -142,8 +144,13 @@ class ir_cron(models.Model):
                 addsql = ''
                 if not numbercall:
                     addsql = ', active=False'
-                cron_cr.execute("UPDATE ir_cron SET nextcall=%s, numbercall=%s"+addsql+" WHERE id=%s",
-                                (fields.Datetime.to_string(nextcall.astimezone(pytz.UTC)), numbercall, job['id']))
+                cron_cr.execute("UPDATE ir_cron SET nextcall=%s, numbercall=%s, lastcall=%s"+addsql+" WHERE id=%s",(
+                    fields.Datetime.to_string(nextcall.astimezone(pytz.UTC)),
+                    numbercall,
+                    fields.Datetime.to_string(now.astimezone(pytz.UTC)),
+                    job['id']
+                ))
+                cron.flush()
                 cron.invalidate_cache()
 
         finally:
@@ -221,6 +228,7 @@ class ir_cron(models.Model):
                     try:
                         registry = odoo.registry(db_name)
                         registry[cls._name]._process_job(job_cr, job, lock_cr)
+                        _logger.info('Job `%s` done.', job['cron_name'])
                     except Exception:
                         _logger.exception('Unexpected exception while processing cron job %r', job)
                     finally:
@@ -270,7 +278,6 @@ class ir_cron(models.Model):
         except Exception:
             _logger.warning('Exception in cron:', exc_info=True)
 
-    @api.multi
     def _try_lock(self):
         """Try to grab a dummy exclusive write-lock to the rows with the given ids,
            to make sure a following write() or unlink() will not block due
@@ -284,17 +291,14 @@ class ir_cron(models.Model):
                               "This cron task is currently being executed and may not be modified "
                               "Please try again in a few minutes"))
 
-    @api.multi
     def write(self, vals):
         self._try_lock()
         return super(ir_cron, self).write(vals)
 
-    @api.multi
     def unlink(self):
         self._try_lock()
         return super(ir_cron, self).unlink()
 
-    @api.multi
     def try_write(self, values):
         try:
             with self._cr.savepoint():

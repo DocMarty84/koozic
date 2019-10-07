@@ -80,7 +80,7 @@ def load_demo(cr, package, idref, mode, report=None):
 
     try:
         _logger.info("Module %s: loading demo", package.name)
-        with cr.savepoint():
+        with cr.savepoint(flush=False):
             load_data(cr, idref, mode, kind='demo', package=package, report=report)
         return True
     except Exception as e:
@@ -246,17 +246,15 @@ def load_module_graph(cr, graph, status=None, perform_checks=True,
             # update made to the schema or data so the tests can run
             # (separately in their own transaction)
             cr.commit()
-            if demo_loaded:
-                # launch tests only in demo mode, allowing tests to use demo data.
-                if tools.config.options['test_enable']:
-                    # Yamel test
-                    report.record_result(load_test(idref, mode))
-                    # Python tests
-                    env['ir.http']._clear_routing_map()     # force routing map to be rebuilt
-                    report.record_result(odoo.modules.module.run_unit_tests(module_name, cr.dbname))
-                    # tests may have reset the environment
-                    env = api.Environment(cr, SUPERUSER_ID, {})
-                    module = env['ir.module.module'].browse(module_id)
+
+            if tools.config.options['test_enable']:
+                report.record_result(load_test(idref, mode))
+                # Python tests
+                env['ir.http']._clear_routing_map()     # force routing map to be rebuilt
+                report.record_result(odoo.modules.module.run_unit_tests(module_name))
+                # tests may have reset the environment
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                module = env['ir.module.module'].browse(module_id)
 
             processed_modules.append(package.name)
 
@@ -270,6 +268,7 @@ def load_module_graph(cr, graph, status=None, perform_checks=True,
             for kind in ('init', 'demo', 'update'):
                 if hasattr(package, kind):
                     delattr(package, kind)
+            module.flush()
 
         if package.name is not None:
             registry._init_modules.add(package.name)
@@ -393,7 +392,7 @@ def load_modules(db, force_demo=False, status=None, update_module=False):
 
             cr.execute("update ir_module_module set state=%s where name=%s", ('installed', 'base'))
             Module.invalidate_cache(['state'])
-
+            Module.flush()
 
         # STEP 3: Load marked modules (skipping base which was done in STEP 1)
         # IMPORTANT: this is done in two parts, first loading all installed or
@@ -453,6 +452,7 @@ def load_modules(db, force_demo=False, status=None, update_module=False):
 
             # Cleanup orphan records
             env['ir.model.data']._process_end(processed_modules)
+            env['base'].flush()
 
         for kind in ('init', 'demo', 'update'):
             tools.config[kind] = {}
@@ -515,6 +515,7 @@ def load_modules(db, force_demo=False, status=None, update_module=False):
         env = api.Environment(cr, SUPERUSER_ID, {})
         for model in env.values():
             model._register_hook()
+        env['base'].flush()
 
         # STEP 9: save installed/updated modules for post-install tests
         registry.updated_modules += processed_modules

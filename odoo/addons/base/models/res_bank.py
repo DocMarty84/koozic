@@ -6,7 +6,6 @@ import collections
 
 from odoo import api, fields, models, _
 from odoo.osv import expression
-from odoo.tools import pycompat
 
 import werkzeug.urls
 
@@ -33,7 +32,6 @@ class Bank(models.Model):
     active = fields.Boolean(default=True)
     bic = fields.Char('Bank Identifier Code', index=True, help="Sometimes called BIC or Swift.")
 
-    @api.multi
     def name_get(self):
         result = []
         for bank in self:
@@ -50,7 +48,7 @@ class Bank(models.Model):
             if operator in expression.NEGATIVE_TERM_OPERATORS:
                 domain = ['&'] + domain
         bank_ids = self._search(domain + args, limit=limit, access_rights_uid=name_get_uid)
-        return self.browse(bank_ids).name_get()
+        return models.lazy_name_get(self.browse(bank_ids).with_user(name_get_uid))
         
     @api.onchange('country')
     def _onchange_country_id(self):
@@ -87,7 +85,7 @@ class ResPartnerBank(models.Model):
     bank_bic = fields.Char(related='bank_id.bic', readonly=False)
     sequence = fields.Integer(default=10)
     currency_id = fields.Many2one('res.currency', string='Currency')
-    company_id = fields.Many2one('res.company', 'Company', default=lambda self: self.env.user.company_id, ondelete='cascade')
+    company_id = fields.Many2one('res.company', 'Company', default=lambda self: self.env.company, ondelete='cascade')
     qr_code_valid = fields.Boolean(string="Has all required arguments", compute="_validate_qr_code_arguments")
 
     _sql_constraints = [
@@ -114,10 +112,11 @@ class ResPartnerBank(models.Model):
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
         pos = 0
         while pos < len(args):
+            # DLE P14
             if args[pos][0] == 'acc_number':
                 op = args[pos][1]
                 value = args[pos][2]
-                if not isinstance(value, pycompat.string_types) and isinstance(value, collections.Iterable):
+                if not isinstance(value, str) and isinstance(value, collections.Iterable):
                     value = [sanitize_account_number(i) for i in value]
                 else:
                     value = sanitize_account_number(value)
@@ -136,14 +135,8 @@ class ResPartnerBank(models.Model):
         qr_code_url = '/report/barcode/?type=%s&value=%s&width=%s&height=%s&humanreadable=1' % ('QR', werkzeug.url_quote_plus(qr_code_string), 128, 128)
         return qr_code_url
 
-    @api.multi
     def _validate_qr_code_arguments(self):
         for bank in self:
-            if bank.currency_id.name == False:
-                currency = bank.company_id.currency_id
-            else:
-                currency = bank.currency_id
             bank.qr_code_valid = (bank.bank_bic
                                             and bank.company_id.name
-                                            and bank.acc_number
-                                            and (currency.name == 'EUR'))
+                                            and bank.acc_number)

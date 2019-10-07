@@ -2,7 +2,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
-from odoo.tools import pycompat
 
 
 def selection_fn(model):
@@ -26,7 +25,7 @@ MODELS = [
     ('date', fields.Date()),
     ('datetime', fields.Datetime()),
     ('text', fields.Text()),
-    ('selection', fields.Selection([(1, "Foo"), (2, "Bar"), (3, "Qux"), (4, '')])),
+    ('selection', fields.Selection([('1', "Foo"), ('2', "Bar"), ('3', "Qux"), ('4', '')])),
     ('selection.function', fields.Selection(selection_fn)),
     # just relate to an integer
     ('many2one', fields.Many2one('export.integer')),
@@ -45,15 +44,14 @@ for name, field in MODELS:
         const = fields.Integer(default=4)
         value = field
 
-        @api.multi
         def name_get(self):
             return [(record.id, "%s:%s" % (self._name, record.value)) for record in self]
 
         @api.model
         def _name_search(self, name, args=None, operator='ilike', limit=100, name_get_uid=None):
-            if isinstance(name, pycompat.string_types) and name.split(':')[0] == self._name:
+            if isinstance(name, str) and name.split(':')[0] == self._name:
                 record_ids = self._search([('value', operator, int(name.split(':')[1]))], access_rights_uid=name_get_uid)
-                return self.browse(record_ids).name_get()
+                return models.lazy_name_get(self.browse(record_ids).with_user(name_get_uid))
             else:
                 return []
 
@@ -67,15 +65,14 @@ class One2ManyChild(models.Model):
     str = fields.Char()
     value = fields.Integer()
 
-    @api.multi
     def name_get(self):
         return [(record.id, "%s:%s" % (self._name, record.value)) for record in self]
 
     @api.model
     def _name_search(self, name, args=None, operator='ilike', limit=100, name_get_uid=None):
-        if isinstance(name, pycompat.string_types) and name.split(':')[0] == self._name:
+        if isinstance(name, str) and name.split(':')[0] == self._name:
             record_ids = self._search([('value', operator, int(name.split(':')[1]))], access_rights_uid=name_get_uid)
-            return self.browse(record_ids).name_get()
+            return models.lazy_name_get(self.browse(record_ids).with_user(name_get_uid))
         else:
             return []
 
@@ -100,7 +97,6 @@ class One2ManyChildMultiple(models.Model):
     str = fields.Char()
     value = fields.Integer()
 
-    @api.multi
     def name_get(self):
         return [(record.id, "%s:%s" % (self._name, record.value)) for record in self]
 
@@ -126,15 +122,14 @@ class Many2ManyChild(models.Model):
     str = fields.Char()
     value = fields.Integer()
 
-    @api.multi
     def name_get(self):
         return [(record.id, "%s:%s" % (self._name, record.value)) for record in self]
 
     @api.model
     def _name_search(self, name, args=None, operator='ilike', limit=100, name_get_uid=None):
-        if isinstance(name, pycompat.string_types) and name.split(':')[0] == self._name:
+        if isinstance(name, str) and name.split(':')[0] == self._name:
             record_ids = self._search([('value', operator, int(name.split(':')[1]))], access_rights_uid=name_get_uid)
-            return self.browse(record_ids).name_get()
+            return models.lazy_name_get(self.browse(record_ids).with_user(name_get_uid))
         else:
             return []
 
@@ -144,7 +139,7 @@ class SelectionWithDefault(models.Model):
     _description = 'Export Selection With Default'
 
     const = fields.Integer(default=4)
-    value = fields.Selection([(1, "Foo"), (2, "Bar")], default=2)
+    value = fields.Selection([('1', "Foo"), ('2', "Bar")], default='2')
 
 
 class RecO2M(models.Model):

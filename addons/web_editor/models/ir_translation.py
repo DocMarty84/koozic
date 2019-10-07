@@ -8,7 +8,7 @@ from odoo.tools.translate import encode, xml_translate, html_translate
 
 
 def edit_translation_mapping(data):
-    data = dict(data, model=data['name'].partition(',')[0])
+    data = dict(data, model=data['name'].partition(',')[0], value=data['value'] or data['src'])
     return '<span data-oe-model="%(model)s" data-oe-translation-id="%(id)s" data-oe-translation-state="%(state)s">%(value)s</span>' % data
 
 
@@ -22,7 +22,6 @@ class IrTranslation(models.Model):
             return edit_translation_mapping
         return super(IrTranslation, self)._get_terms_mapping(field, records)
 
-    @api.multi
     def save_html(self, value):
         """ Convert the HTML fragment ``value`` to XML if necessary, and write
         it as the value of translation ``self``.

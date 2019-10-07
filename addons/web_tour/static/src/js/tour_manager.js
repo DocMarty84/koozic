@@ -49,7 +49,7 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
      *        the url to load when manually running the tour
      * @param {boolean} [options.rainbowMan=true]
      *        whether or not the rainbowman must be shown at the end of the tour
-     * @param {Deferred} [options.wait_for]
+     * @param {Promise} [options.wait_for]
      *        indicates when the tour can be started
      * @param {Object[]} steps - steps' descriptions, each step being an object
      *                     containing a tip description
@@ -70,7 +70,7 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
             url: options.url,
             rainbowMan: options.rainbowMan === undefined ? true : !!options.rainbowMan,
             test: options.test,
-            wait_for: options.wait_for || $.when(),
+            wait_for: options.wait_for || Promise.resolve(),
         };
         if (options.skip_enabled) {
             tour.skip_link = '<p><span class="o_skip_tour">' + _t('Skip tour') + '</span></p>';
@@ -81,14 +81,35 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
         }
         this.tours[name] = tour;
     },
+    /**
+     * Returns a promise which is resolved once the tour can be started. This
+     * is when the DOM is ready and at the end of the execution stack so that
+     * all tours have potentially been extended by all apps.
+     *
+     * @private
+     * @returns {Promise}
+     */
+    _waitBeforeTourStart: function () {
+        return new Promise(function (resolve) {
+            $(function () {
+                setTimeout(resolve);
+            });
+        });
+    },
     _register_all: function (do_update) {
-        if (this._all_registered) return;
-        this._all_registered = true;
-
-        _.each(this.tours, this._register.bind(this, do_update));
+        var self = this;
+        if (this._allRegistered) {
+            return Promise.resolve();
+        }
+        this._allRegistered = true;
+        return self._waitBeforeTourStart().then(function () {
+            return Promise.all(_.map(self.tours, function (tour, name) {
+                return self._register(do_update, tour, name);
+            }));
+        });
     },
     _register: function (do_update, tour, name) {
-        if (tour.ready) return $.when();
+        if (tour.ready) return Promise.resolve();
 
         var tour_is_consumed = _.contains(this.consumed_tours, name);
 
@@ -142,8 +163,7 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
                 this.update();
             }).bind(this));
 
-            var url = session.debug ? $.param.querystring(tour.url, {debug: session.debug}) : tour.url;
-            window.location.href = window.location.origin + url;
+            window.location.href = window.location.origin + tour.url;
         } else {
             this.update();
         }
@@ -196,7 +216,6 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
         if (tip === undefined) {
             return true;
         }
-
         if ($('body').hasClass('o_ui_blocked')) {
             this._deactivate_tip(tip);
             this._log.push("blockUI is preventing the tip to be consumed");
@@ -282,13 +301,17 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
             delete tip.widget;
         }
     },
+    _describeTip: function(tip) {
+        return tip.content ? tip.content + ' (trigger: ' + tip.trigger + ')' : tip.trigger;
+    },
     _consume_tip: function(tip, tour_name) {
         this._deactivate_tip(tip);
         this._to_next_step(tour_name);
 
         var is_running = (this.running_tour === tour_name);
         if (is_running) {
-            console.log(_.str.sprintf("Tour %s: step %s succeeded", tour_name, tip.trigger));
+            var stepDescription = this._describeTip(tip);
+            console.log(_.str.sprintf("Tour %s: step '%s' succeeded", tour_name, stepDescription));
         }
 
         if (this.active_tooltips[tour_name]) {
@@ -340,12 +363,12 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
                 _.each(this._log, function (log) {
                     console.log(log);
                 });
-                console.log(document.body.outerHTML);
+                console.log(document.body.parentElement.outerHTML);
                 console.error(error); // will be displayed as error info
-                console.log("error"); // phantomJS wait for message starting by error to stop
+                console.error("test failed"); // browser_js wait for error message "test failed"
             } else {
                 console.log(_.str.sprintf("Tour %s succeeded", tour_name));
-                console.log("ok"); // phantomJS wait for exact message "ok"
+                console.log("test successful"); // browser_js wait for message "test successful"
             }
             this._log = [];
         } else {
@@ -363,7 +386,8 @@ return core.Class.extend(mixins.EventDispatcherMixin, ServicesMixin, {
     _set_running_tour_timeout: function (tour_name, step) {
         this._stop_running_tour_timeout();
         this.running_tour_timeout = setTimeout((function() {
-            this._consume_tour(tour_name, _.str.sprintf("Tour %s failed at step %s", tour_name, step.trigger));
+            var descr = this._describeTip(step);
+            this._consume_tour(tour_name, _.str.sprintf("Tour %s failed at step %s", tour_name, descr));
         }).bind(this), (step.timeout || RUNNING_TOUR_TIMEOUT) + this.running_step_delay);
     },
     _stop_running_tour_timeout: function () {

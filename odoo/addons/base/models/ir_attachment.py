@@ -6,17 +6,14 @@ import itertools
 import logging
 import mimetypes
 import os
-import io
 import re
 from collections import defaultdict
 import uuid
 
-from odoo import api, fields, models, tools, SUPERUSER_ID, exceptions, _
-from odoo.exceptions import AccessError, ValidationError
+from odoo import api, fields, models, tools, _
+from odoo.exceptions import AccessError, ValidationError, MissingError
 from odoo.tools import config, human_size, ustr, html_escape
 from odoo.tools.mimetypes import guess_mimetype
-from odoo.tools import crop_image, image_resize_image
-from PyPDF2 import PdfFileWriter, PdfFileReader
 
 _logger = logging.getLogger(__name__)
 
@@ -39,20 +36,13 @@ class IrAttachment(models.Model):
     _description = 'Attachment'
     _order = 'id desc'
 
-    @api.depends('res_model', 'res_id')
     def _compute_res_name(self):
         for attachment in self:
             if attachment.res_model and attachment.res_id:
                 record = self.env[attachment.res_model].browse(attachment.res_id)
                 attachment.res_name = record.display_name
-
-    @api.depends('res_model')
-    def _compute_res_model_name(self):
-        for record in self:
-            if record.res_model:
-                model = self.env['ir.model'].search([('model', '=', record.res_model)], limit=1)
-                if model:
-                    record.res_model_name = model[0].name
+            else:
+                attachment.res_name = False
 
     @api.model
     def _storage(self):
@@ -65,7 +55,7 @@ class IrAttachment(models.Model):
     @api.model
     def force_storage(self):
         """Force all attachments to be stored in the currently configured storage"""
-        if not self.env.user._is_admin():
+        if not self.env.is_admin():
             raise AccessError(_('Only administrators can execute this action.'))
 
         # domain to retrieve the attachments to migrate
@@ -110,7 +100,8 @@ class IrAttachment(models.Model):
             if bin_size:
                 r = human_size(os.path.getsize(full_path))
             else:
-                r = base64.b64encode(open(full_path,'rb').read())
+                with open(full_path,'rb') as fd:
+                    r = base64.b64encode(fd.read())
         except (IOError, OSError):
             _logger.info("_read_file reading %s", full_path, exc_info=True)
         return r
@@ -204,29 +195,29 @@ class IrAttachment(models.Model):
                 attach.datas = attach.db_datas
 
     def _inverse_datas(self):
-        location = self._storage()
         for attach in self:
-            # compute the fields that depend on datas
-            value = attach.datas
-            bin_data = base64.b64decode(value) if value else b''
-            vals = {
-                'file_size': len(bin_data),
-                'checksum': self._compute_checksum(bin_data),
-                'index_content': self._index(bin_data, attach.datas_fname, attach.mimetype),
-                'store_fname': False,
-                'db_datas': value,
-            }
-            if value and location != 'db':
-                # save it to the filestore
-                vals['store_fname'] = self._file_write(value, vals['checksum'])
-                vals['db_datas'] = False
-
+            vals = self._get_datas_related_values(attach.datas, attach.mimetype)
             # take current location in filestore to possibly garbage-collect it
             fname = attach.store_fname
             # write as superuser, as user probably does not have write access
             super(IrAttachment, attach.sudo()).write(vals)
             if fname:
                 self._file_delete(fname)
+
+    def _get_datas_related_values(self, data, mimetype):
+        # compute the fields that depend on datas
+        bin_data = base64.b64decode(data) if data else b''
+        values = {
+            'file_size': len(bin_data),
+            'checksum': self._compute_checksum(bin_data),
+            'index_content': self._index(bin_data, mimetype),
+            'store_fname': False,
+            'db_datas': data,
+        }
+        if data and self._storage() != 'db':
+            values['store_fname'] = self._file_write(data, values['checksum'])
+            values['db_datas'] = False
+        return values
 
     def _compute_checksum(self, bin_data):
         """ compute the checksum for the given datas
@@ -243,8 +234,8 @@ class IrAttachment(models.Model):
         mimetype = None
         if values.get('mimetype'):
             mimetype = values['mimetype']
-        if not mimetype and values.get('datas_fname'):
-            mimetype = mimetypes.guess_type(values['datas_fname'])[0]
+        if not mimetype and values.get('name'):
+            mimetype = mimetypes.guess_type(values['name'])[0]
         if not mimetype and values.get('url'):
             mimetype = mimetypes.guess_type(values['url'])[0]
         if values.get('datas') and (not mimetype or mimetype == 'application/octet-stream'):
@@ -262,8 +253,8 @@ class IrAttachment(models.Model):
         return values
 
     @api.model
-    def _index(self, bin_data, datas_fname, file_type):
-        """ compute the index content of the given filename, or binary data.
+    def _index(self, bin_data, file_type):
+        """ compute the index content of the given binary data.
             This is a python implementation of the unix command 'strings'.
             :param bin_data : datas in binary form
             :return index_content : string containing all the printable character of the binary data
@@ -286,15 +277,14 @@ class IrAttachment(models.Model):
         return ['base.group_system']
 
     name = fields.Char('Name', required=True)
-    datas_fname = fields.Char('Filename')
     description = fields.Text('Description')
-    res_name = fields.Char('Resource Name', compute='_compute_res_name', store=True)
+    res_name = fields.Char('Resource Name', compute='_compute_res_name')
     res_model = fields.Char('Resource Model', readonly=True, help="The database object this attachment will be attached to.")
-    res_model_name = fields.Char(compute='_compute_res_model_name', store=True, index=True)
     res_field = fields.Char('Resource Field', readonly=True)
-    res_id = fields.Integer('Resource ID', readonly=True, help="The record id this is attached to.")
+    res_id = fields.Many2oneReference('Resource ID', model_field='res_model',
+                                      readonly=True, help="The record id this is attached to.")
     company_id = fields.Many2one('res.company', string='Company', change_default=True,
-                                 default=lambda self: self.env['res.company']._company_default_get('ir.attachment'))
+                                 default=lambda self: self.env.company)
     type = fields.Selection([('url', 'URL'), ('binary', 'File')],
                             string='Type', required=True, default='binary', change_default=True,
                             help="You can either upload a file from your computer or copy/paste an internet link to your file.")
@@ -306,46 +296,51 @@ class IrAttachment(models.Model):
 
     # the field 'datas' is computed and may use the other fields below
     datas = fields.Binary(string='File Content', compute='_compute_datas', inverse='_inverse_datas')
-    db_datas = fields.Binary('Database Data')
+    db_datas = fields.Binary('Database Data', attachment=False)
     store_fname = fields.Char('Stored Filename')
     file_size = fields.Integer('File Size', readonly=True)
     checksum = fields.Char("Checksum/SHA1", size=40, index=True, readonly=True)
     mimetype = fields.Char('Mime Type', readonly=True)
     index_content = fields.Text('Indexed Content', readonly=True, prefetch=False)
-    active = fields.Boolean(default=True, string="Active", oldname='archived')
-    thumbnail = fields.Binary(readonly=1, attachment=True)
 
-    @api.model_cr_context
     def _auto_init(self):
         res = super(IrAttachment, self)._auto_init()
         tools.create_index(self._cr, 'ir_attachment_res_idx',
                            self._table, ['res_model', 'res_id'])
         return res
 
-    @api.one
     @api.constrains('type', 'url')
     def _check_serving_attachments(self):
-        # restrict writing on attachments that could be served by the
-        # ir.http's dispatch exception handling
-        if self.env.user._is_admin():
+        if self.env.is_admin():
             return
-        if self.type == 'binary' and self.url:
-            has_group = self.env.user.has_group
-            if not any([has_group(g) for g in self.get_serving_groups()]):
-                raise ValidationError("Sorry, you are not allowed to write on this document")
+        for attachment in self:
+            # restrict writing on attachments that could be served by the
+            # ir.http's dispatch exception handling
+            # XDO note: this should be done in check(write), constraints for access rights?
+            # XDO note: if read on sudo, read twice, one for constraints, one for _inverse_datas as user
+            if attachment.type == 'binary' and attachment.url:
+                has_group = self.env.user.has_group
+                if not any([has_group(g) for g in attachment.get_serving_groups()]):
+                    raise ValidationError("Sorry, you are not allowed to write on this document")
 
     @api.model
     def check(self, mode, values=None):
         """Restricts the access to an ir.attachment, according to referred model
-        In the 'document' module, it is overriden to relax this hard rule, since
+        In the 'document' module, it is overridden to relax this hard rule, since
         more complex ones apply there.
         """
+        if self.env.is_superuser():
+            return True
         # collect the records to check (by model)
         model_ids = defaultdict(set)            # {model_name: set(ids)}
         require_employee = False
         if self:
-            self._cr.execute('SELECT res_model, res_id, create_uid, public FROM ir_attachment WHERE id IN %s', [tuple(self.ids)])
-            for res_model, res_id, create_uid, public in self._cr.fetchall():
+            # DLE P173: `test_01_portal_attachment`
+            self.env['ir.attachment'].flush(['res_model', 'res_id', 'create_uid', 'public', 'res_field'])
+            self._cr.execute('SELECT res_model, res_id, create_uid, public, res_field FROM ir_attachment WHERE id IN %s', [tuple(self.ids)])
+            for res_model, res_id, create_uid, public, res_field in self._cr.fetchall():
+                if not self.env.is_system() and res_field:
+                    raise AccessError(_("Sorry, you are not allowed to access this document."))
                 if public and mode == 'read':
                     continue
                 if not (res_model and res_id):
@@ -378,17 +373,27 @@ class IrAttachment(models.Model):
             records.check_access_rule(mode)
 
         if require_employee:
-            if not (self.env.user._is_admin() or self.env.user.has_group('base.group_user')):
+            if not (self.env.is_admin() or self.env.user.has_group('base.group_user')):
                 raise AccessError(_("Sorry, you are not allowed to access this document."))
+
+    def _read_group_allowed_fields(self):
+        return ['type', 'company_id', 'res_id', 'create_date', 'create_uid', 'name', 'mimetype', 'id', 'url', 'res_field', 'res_model']
 
     @api.model
     def read_group(self, domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True):
         """Override read_group to add res_field=False in domain if not present."""
+        if not fields:
+            raise AccessError(_("Sorry, you must provide fields to read on attachments"))
+        if any('(' in field for field in fields + groupby):
+            raise AccessError(_("Sorry, the syntax 'name:agg(field)' is not available for attachments"))
         if not any(item[0] in ('id', 'res_field') for item in domain):
             domain.insert(0, ('res_field', '=', False))
-        return super(IrAttachment, self).read_group(domain, fields, groupby,
-                                                    offset=offset, limit=limit,
-                                                    orderby=orderby, lazy=lazy)
+        groupby = [groupby] if isinstance(groupby, str) else groupby
+        allowed_fields = self._read_group_allowed_fields()
+        fields_set = set(field.split(':')[0] for field in fields + groupby)
+        if not self.env.is_system() and (not fields or fields_set.difference(allowed_fields)):
+            raise AccessError(_("Sorry, you are not allowed to access these fields on attachments."))
+        return super().read_group(domain, fields, groupby, offset=offset, limit=limit, orderby=orderby, lazy=lazy)
 
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
@@ -400,7 +405,7 @@ class IrAttachment(models.Model):
         ids = super(IrAttachment, self)._search(args, offset=offset, limit=limit, order=order,
                                                 count=False, access_rights_uid=access_rights_uid)
 
-        if self._uid == SUPERUSER_ID:
+        if self.env.is_system():
             # rules do not apply for the superuser
             return len(ids) if count else ids
 
@@ -418,12 +423,19 @@ class IrAttachment(models.Model):
         # Use pure SQL rather than read() as it is about 50% faster for large dbs (100k+ docs),
         # and the permissions are checked in super() and below anyway.
         model_attachments = defaultdict(lambda: defaultdict(set))   # {res_model: {res_id: set(ids)}}
-        self._cr.execute("""SELECT id, res_model, res_id, public FROM ir_attachment WHERE id IN %s""", [tuple(ids)])
+        binary_fields_attachments = set()
+        self._cr.execute("""SELECT id, res_model, res_id, public, res_field FROM ir_attachment WHERE id IN %s""", [tuple(ids)])
         for row in self._cr.dictfetchall():
             if not row['res_model'] or row['public']:
                 continue
             # model_attachments = {res_model: {res_id: set(ids)}}
             model_attachments[row['res_model']][row['res_id']].add(row['id'])
+            # Should not retrieve binary fields attachments
+            if row['res_field']:
+                binary_fields_attachments.add(row['id'])
+
+        if binary_fields_attachments:
+            ids.difference_update(binary_fields_attachments)
 
         # To avoid multiple queries for each attachment found, checks are
         # performed in batch as much as possible.
@@ -442,26 +454,22 @@ class IrAttachment(models.Model):
 
         # sort result according to the original sort ordering
         result = [id for id in orig_ids if id in ids]
+
+        # If the original search reached the limit, it is important the
+        # filtered record set does so too. When a JS view recieve a
+        # record set whose length is bellow the limit, it thinks it
+        # reached the last page.
+        if len(orig_ids) == limit and len(result) < len(orig_ids):
+            result.extend(self._search(args, offset=offset + len(orig_ids),
+                                       limit=limit, order=order, count=count,
+                                       access_rights_uid=access_rights_uid)[:limit - len(result)])
+
         return len(result) if count else list(result)
 
-    @api.multi
     def read(self, fields=None, load='_classic_read'):
         self.check('read')
         return super(IrAttachment, self).read(fields, load=load)
 
-    def _make_thumbnail(self, vals):
-        if vals.get('datas') and not vals.get('res_field'):
-            vals['thumbnail'] = False
-            if vals.get('mimetype') and re.match('image.*(gif|jpeg|jpg|png)', vals['mimetype']):
-                try:
-                    temp_image = crop_image(vals['datas'], type='center', size=(80, 80), ratio=(1, 1))
-                    vals['thumbnail'] = image_resize_image(base64_source=temp_image, size=(80, 80),
-                                                           encoding='base64')
-                except Exception:
-                    pass
-        return vals
-
-    @api.multi
     def write(self, vals):
         self.check('write', values=vals)
         # remove computed field depending of datas
@@ -469,16 +477,12 @@ class IrAttachment(models.Model):
             vals.pop(field, False)
         if 'mimetype' in vals or 'datas' in vals:
             vals = self._check_contents(vals)
-            if all([not attachment.res_field for attachment in self]):
-                vals = self._make_thumbnail(vals)
         return super(IrAttachment, self).write(vals)
 
-    @api.multi
     def copy(self, default=None):
         self.check('write')
         return super(IrAttachment, self).copy(default)
 
-    @api.multi
     def unlink(self):
         if not self:
             return True
@@ -497,111 +501,44 @@ class IrAttachment(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        record_tuple_set = set()
         for values in vals_list:
             # remove computed field depending of datas
             for field in ('file_size', 'checksum'):
                 values.pop(field, False)
             values = self._check_contents(values)
-            values = self._make_thumbnail(values)
-            self.browse().check('write', values=values)
+            if 'datas' in values:
+                values.update(self._get_datas_related_values(values.pop('datas'), values['mimetype']))
+            # 'check()' only uses res_model and res_id from values, and make an exists.
+            # We can group the values by model, res_id to make only one query when 
+            # creating multiple attachments on a single record.
+            record_tuple = (values.get('res_model'), values.get('res_id'))
+            record_tuple_set.add(record_tuple)
+        for record_tuple in record_tuple_set:
+            (res_model, res_id) = record_tuple
+            self.check('write', values={'res_model':res_model, 'res_id':res_id})
         return super(IrAttachment, self).create(vals_list)
 
-    @api.multi
     def _post_add_create(self):
         pass
 
-    @api.one
     def generate_access_token(self):
-        if self.access_token:
-            return self.access_token
-        access_token = str(uuid.uuid4())
-        self.write({'access_token': access_token})
-        return access_token
+        tokens = []
+        for attachment in self:
+            if attachment.access_token:
+                tokens.append(attachment.access_token)
+                continue
+            access_token = self._generate_access_token()
+            attachment.write({'access_token': access_token})
+            tokens.append(access_token)
+        return tokens
+
+    def _generate_access_token(self):
+        return str(uuid.uuid4())
 
     @api.model
     def action_get(self):
         return self.env['ir.actions.act_window'].for_xml_id('base', 'action_attachment')
-
-    def _make_pdf(self, output, name_ext):
-        """
-        :param output: PdfFileWriter object.
-        :param name_ext: the additional name of the new attachment (page count).
-        :return: the id of the attachment.
-        """
-        self.ensure_one()
-        try:
-            stream = io.BytesIO()
-            output.write(stream)
-            return self.copy({
-                'name': self.name+'-'+name_ext,
-                'datas_fname': os.path.splitext(self.datas_fname or self.name)[0]+'-'+name_ext+".pdf",
-                'datas': base64.b64encode(stream.getvalue()),
-            })
-        except Exception:
-            raise Exception
-
-    def _split_pdf_groups(self, pdf_groups=None, remainder=False):
-        """
-        calls _make_pdf to create the a new attachment for each page section.
-        :param pdf_groups: a list of lists representing the pages to split:  pages = [[1,1], [4,5], [7,7]]
-        :returns the list of the ID's of the new PDF attachments.
-
-        """
-        self.ensure_one()
-        with io.BytesIO(base64.b64decode(self.datas)) as stream:
-            try:
-                input_pdf = PdfFileReader(stream)
-            except Exception:
-                raise exceptions.ValidationError(_("ERROR: Invalid PDF file!"))
-            max_page = input_pdf.getNumPages()
-            remainder_set = set(range(0, max_page))
-            new_pdf_ids = []
-            if not pdf_groups:
-                pdf_groups = []
-            for pages in pdf_groups:
-                pages[1] = min(max_page, pages[1])
-                pages[0] = min(max_page, pages[0])
-                if pages[0] == pages[1]:
-                    name_ext = "%s" % (pages[0],)
-                else:
-                    name_ext = "%s-%s" % (pages[0], pages[1])
-                output = PdfFileWriter()
-                for i in range(pages[0]-1, pages[1]):
-                    output.addPage(input_pdf.getPage(i))
-                new_pdf_id = self._make_pdf(output, name_ext)
-                new_pdf_ids.append(new_pdf_id)
-                remainder_set = remainder_set.difference(set(range(pages[0] - 1, pages[1])))
-            if remainder:
-                for i in remainder_set:
-                    output_page = PdfFileWriter()
-                    name_ext = "%s" % (i + 1,)
-                    output_page.addPage(input_pdf.getPage(i))
-                    new_pdf_id = self._make_pdf(output_page, name_ext)
-                    new_pdf_ids.append(new_pdf_id)
-                self.write({'active': False})
-            elif not len(remainder_set):
-                self.write({'active': False})
-            return new_pdf_ids
-
-    def split_pdf(self, indices=None, remainder=False):
-        """
-        called by the Document Viewer's Split PDF button.
-        evaluates the input string and turns it into a list of lists to be processed by _split_pdf_groups
-
-        :param indices: the formatted string of pdf split (e.g. 1,5-10, 8-22, 29-34) o_page_number_input
-        :param remainder: bool, if true splits the non specified pages, one by one. form checkbox o_remainder_input
-        :returns the list of the ID's of the newly created pdf attachments.
-        """
-        self.ensure_one()
-        if 'pdf' not in self.mimetype:
-            raise exceptions.ValidationError(_("ERROR: the file must be a PDF"))
-        if indices:
-            try:
-                pages = [[int(x) for x in x.split('-')] for x in indices.split(',')]
-            except ValueError:
-                raise exceptions.ValidationError(_("ERROR: Invalid list of pages to split. Example: 1,5-9,10"))
-            return self._split_pdf_groups(pdf_groups=[[min(x), max(x)] for x in pages], remainder=remainder)
-        return self._split_pdf_groups(remainder=remainder)
 
     @api.model
     def get_serve_attachment(self, url, extra_domain=None, extra_fields=None, order=None):

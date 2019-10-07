@@ -33,7 +33,7 @@
     }
 
     // Block fields
-    &.note-editor, &.oe_form_field_html, &.oe_form_field_html_text, &.oe_form_field_text, &.o_field_domain, &.o_graph_linechart, &.o_graph_barchart {
+    &.note-editor, &.oe_form_field_html, &.oe_form_field_text, &.o_field_domain, &.o_graph_linechart, &.o_graph_barchart {
         display: block;
     }
 
@@ -52,7 +52,6 @@
         width: 100%;
 
         > input {
-            height: 100%;
             padding-right: 15px;
             cursor: pointer;
         }
@@ -88,6 +87,7 @@
     &.o_field_many2manytags {
         flex-flow: row wrap;
         align-items: baseline;
+        max-width: 100%;
 
         > .o_field_widget {
             flex: 1 0 100px;
@@ -101,6 +101,8 @@
             font-size: 12px;
             cursor: pointer;
             user-select: none;
+            display: flex;
+            max-width: 100%;
 
             a {
                 color: inherit;
@@ -115,6 +117,7 @@
             .o_delete {
                 color: inherit;
                 cursor: pointer;
+                padding-left: 4px;
             }
         }
 
@@ -184,6 +187,25 @@
 
             .o_delete {
                 color: #FF0000;
+            }
+        }
+        // Many2many tags avatar
+        &.avatar {
+            .badge {
+                padding-left: 4px;
+                img {
+                    height: 18px;
+                    width: 18px;
+                    object-fit: cover;
+                }
+                &.o_tag_color_0 {
+                    background-color: #F1F1F1;
+                    box-shadow: none;
+                    border: 1px solid gray('300');
+                }
+                .o_delete {
+                    margin-top: 3px;
+                }
             }
         }
     }
@@ -359,6 +381,7 @@
             }
 
             > .fa {
+                padding: 4px;
                 margin: 5px;
                 cursor: pointer;
             }
@@ -442,6 +465,15 @@
                 height: 100%;
             }
         }
+    }
+
+    & > .o_field_color {
+        border: 2px solid rgba(0, 0, 0, 0.25);
+        border-radius: 100px;
+        width: 30px;
+        height: 30px;
+        margin: 0 5px 0 0;
+        display: inline-block;
     }
 }
 
