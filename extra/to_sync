@@ -1,9 +1,7 @@
 addons/auth_ldap
 addons/bus
 addons/web
-addons/web_diagram
 addons/web_editor
-addons/web_kanban_gauge
 addons/web_tour
 odoo
 COPYRIGHT
