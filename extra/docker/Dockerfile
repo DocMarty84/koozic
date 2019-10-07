@@ -41,6 +41,7 @@ RUN set -x; \
             python3-passlib \
             python3-pil \
             python3-pip \
+            python3-polib \
             python3-psutil \
             python3-psycopg2 \
             python3-pydot \
@@ -59,14 +60,15 @@ RUN set -x; \
             python3-wheel \
             python3-xlsxwriter \
             python3-yaml \
+            python3-zeep \
             wget && \
         apt-get clean -qq
 
 # Install pip dependencies
 RUN set -x; \
         pip3 install \
-            mutagen==1.41.1 \
-            pytaglib==1.4.4 \
+            mutagen==1.42.0 \
+            pytaglib==1.4.5 \
             num2words==0.5.6 \
             webvtt-py==0.4.2
 

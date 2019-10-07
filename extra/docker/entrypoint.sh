@@ -9,7 +9,7 @@ chown -R koozic /home/koozic/.local
 # Initialize db (odoo automatically detects if db is already initialized)
 echo "KooZic init process starting"
 su - koozic -c "/usr/local/koozic/odoo-bin \
-                -d koozic-v2 \
+                -d koozic-v3 \
                 --db_host=db \
                 --db_port=5432 \
                 --db_user=koozic \
@@ -30,8 +30,8 @@ su - koozic -c "/usr/local/koozic/odoo-bin \
                 --workers=4 \
                 --limit-time-cpu=1800 \
                 --limit-time-real=3600 \
-                -d koozic-v2 \
-                --db-filter=koozic-v2 \
+                -d koozic-v3 \
+                --db-filter=koozic-v3 \
                 --db_host=db \
                 --db_port=5432 \
                 --db_user=koozic \

@@ -10,11 +10,11 @@ function clean {
 function update_odoo {
     if [ ! -d ${SCRIPT_DIR}/../../odoo ]; then
         cd ${SCRIPT_DIR}/../..
-        git clone -b 12.0 https://github.com/odoo/odoo
+        git clone -b 13.0 https://github.com/odoo/odoo
     fi
     cd ${SCRIPT_DIR}/../../odoo
     git fetch --all --prune
-    git checkout 12.0
+    git checkout 13.0
     git rebase
     git clean -fdx
     export LAST_COMMIT=$(git rev-parse HEAD)
