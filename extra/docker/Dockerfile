@@ -52,7 +52,6 @@ RUN set -x; \
             python3-reportlab \
             python3-requests \
             python3-setuptools \
-            python3-suds \
             python3-tz \
             python3-vatnumber \
             python3-vobject \
@@ -67,7 +66,7 @@ RUN set -x; \
 # Install pip dependencies
 RUN set -x; \
         pip3 install \
-            mutagen==1.42.0 \
+            mutagen==1.43.0 \
             pytaglib==1.4.5 \
             num2words==0.5.6 \
             webvtt-py==0.4.2
