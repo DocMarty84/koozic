@@ -137,3 +137,13 @@ index 95327e62167..53d276a1c8d 100644
 +        <!-- Second Level Menu -->
 +        <menuitem id="menu_action_ldap_installer" parent="base.menu_users" action="action_ldap_installer" sequence="100"/>
  </odoo>
+diff --git a/addons/bus/__manifest__.py b/addons/bus/__manifest__.py
+index 2489f6a..541115b 100644
+--- a/addons/bus/__manifest__.py
++++ b/addons/bus/__manifest__.py
+@@ -10,4 +10,5 @@
+         'security/ir.model.access.csv',
+     ],
+     'installable': True,
++    'auto_install': True,
+ }
