@@ -1074,7 +1074,11 @@ class Field(MetaField('DummyField', (object,), {})):
             records = records.sudo()
         fields = records._field_computed[self]
 
-        # just in case the compute method does not assign a value
+        # Just in case the compute method does not assign a value, we already
+        # mark the computation as done. This is also necessary if the compute
+        # method accesses the old value of the field: the field will be fetched
+        # with _read(), which will flush() it. If the field is still to compute,
+        # the latter flush() will recursively compute this field!
         for field in fields:
             env.remove_to_compute(field, records)
 
@@ -2663,7 +2667,10 @@ class _RelationalMulti(_Relational):
         # use registry to avoid creating a recordset for the model
         prefetch_ids = IterableGenerator(prefetch_x2many_ids, record, self)
         corecords = record.pool[self.comodel_name]._browse(record.env, value, prefetch_ids)
-        if 'active' in corecords and record.env.context.get('active_test', True):
+        if (
+            'active' in corecords
+            and self.context.get('active_test', record.env.context.get('active_test', True))
+        ):
             corecords = corecords.filtered('active').with_prefetch(prefetch_ids)
         return corecords
 

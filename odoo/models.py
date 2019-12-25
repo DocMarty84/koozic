@@ -2675,7 +2675,7 @@ class BaseModel(MetaModel('DummyModel', (object,), {'_register': False})):
             try:
                 field.setup_full(self)
             except Exception:
-                if not self.pool.loaded and field.base_field.manual:
+                if field.base_field.manual:
                     # Something goes wrong when setup a manual field.
                     # This can happen with related fields using another manual many2one field
                     # that hasn't been loaded because the comodel does not exist yet.
@@ -5048,9 +5048,9 @@ Record ids: %(records)s
 
             The returned recordset has the same prefetch object as ``self``.
         """
-        if args and 'allowed_company_ids' not in args[0] and 'allowed_company_ids' in self._context:
-            args[0]['allowed_company_ids'] = self._context.get('allowed_company_ids') 
         context = dict(args[0] if args else self._context, **kwargs)
+        if 'allowed_company_ids' not in context and 'allowed_company_ids' in self._context:
+            context['allowed_company_ids'] = self._context.get('allowed_company_ids')
         return self.with_env(self.env(context=context))
 
     def with_prefetch(self, prefetch_ids=None):
@@ -5747,7 +5747,8 @@ Record ids: %(records)s
                     # mark the field as computed on missing records, otherwise
                     # they remain forever in the todo list, and lead to an
                     # infinite loop...
-                    self.env.remove_to_compute(field, recs - existing)
+                    for f in recs._field_computed[field]:
+                        self.env.remove_to_compute(f, recs - existing)
             else:
                 self.env.cache.invalidate([(field, recs._ids)])
                 self.env.remove_to_compute(field, recs)
