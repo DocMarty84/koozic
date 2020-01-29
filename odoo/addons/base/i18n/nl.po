@@ -13,7 +13,7 @@
 # Maxim Vandenbroucke <mxv@odoo.com>, 2019
 # Gunther Clauwaert <gclauwae@hotmail.com>, 2019
 # Martin Trigaux, 2019
-# Yenthe Van Ginneken <yenthespam@gmail.com>, 2019
+# Yenthe Van Ginneken <yenthespam@gmail.com>, 2020
 # Erwin van der Ploeg <erwin@odooexperts.nl>, 2020
 # 
 msgid ""
@@ -5135,7 +5135,7 @@ msgstr ""
 "=======================\n"
 "\n"
 "Deze module verlengt het werknemers formulier voor een organigram.\n"
-"(N+1, N+2, directe ondergeschikten)"
+"(N+1, N+2, directe werknemers)"
 
 #. module: base
 #: model:ir.module.module,description:base.module_event
@@ -13763,6 +13763,7 @@ msgstr "Energie aanbod"
 #: model:ir.module.module,summary:base.module_crm_iap_lead_enrich
 msgid "Enrich Leads/Opportunities using email address domain"
 msgstr ""
+"Verrijk leads/opportuniteiten aan de hand van het domein van het e-mailadre"
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_form
@@ -25186,7 +25187,7 @@ msgstr "Start configuratie"
 #: model_terms:ir.ui.view,arch_db:base.view_partner_short_form
 #: model_terms:ir.ui.view,arch_db:base.view_res_bank_form
 msgid "State"
-msgstr "Status"
+msgstr "Staat / Provincie"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_country_state__code
@@ -25211,7 +25212,7 @@ msgstr "Status van de onboarding bedrijf stap"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_country__state_ids
 msgid "States"
-msgstr "Status"
+msgstr "Staten / Provincies"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_language_install__state
@@ -27117,7 +27118,7 @@ msgstr "Kleine afgelegen eilanden van de Verenigde Staten"
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_utm
 msgid "UTM Trackers"
-msgstr "UTM traceerders"
+msgstr "UTM trackers"
 
 #. module: base
 #: model:ir.module.module,description:base.module_mass_mailing_crm

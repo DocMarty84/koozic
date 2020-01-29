@@ -11,6 +11,6 @@
     ],
     'application': True,
     'external_dependencies': {
-        'python': ['pyldap'],
+        'python': ['ldap'],
     }
 }
