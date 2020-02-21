@@ -1,0 +1,25 @@
+version: '3.7'
+
+services:
+
+    app:
+        container_name: koozic_app
+        restart: always
+
+        # Pull the pre-built image from the server:
+        #image: docmarty84/koozic
+        # Build the image locally (useful to customize the entrypoint.sh file):
+        build: .
+        image: koozic_app:latest
+
+        # Change '/music' to the actual location of your music.
+        volumes:
+            - koozic_app:/home/koozic/.local
+            - ./db:/var/lib/postgresql/10/main/
+            - /music:/mnt/host:ro
+        ports:
+            - 8069:8069
+            - 8072:8072
+
+volumes:
+    koozic_app:
