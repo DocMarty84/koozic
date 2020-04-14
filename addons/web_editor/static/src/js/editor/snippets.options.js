@@ -399,6 +399,9 @@ registry.sizing = SnippetOption.extend({
         this.$handles.on('mousedown', function (ev) {
             ev.preventDefault();
 
+            // First update size values as some element sizes may not have been
+            // initialized on option start (hidden slides, etc)
+            resizeValues = self._getSize();
             var $handle = $(ev.currentTarget);
 
             var compass = false;
@@ -936,7 +939,6 @@ registry.background = SnippetOption.extend({
             noDocuments: true,
             noIcons: true,
             noVideos: true,
-            firstFilters: ['background'],
             res_model: $editable.data('oe-model'),
             res_id: $editable.data('oe-id'),
         };
@@ -1020,7 +1022,7 @@ registry.background = SnippetOption.extend({
      * @param {Object} data
      */
     _onSaveMediaDialog: function (data) {
-        this._setCustomBackground(data.src);
+        this._setCustomBackground($(data).attr('src'));
     },
 });
 

@@ -107,16 +107,19 @@ var FieldHtml = basic_fields.DebouncedField.extend(TranslatableFieldMixin, {
             return this._super();
         }
         var _super = this._super.bind(this);
-        return this.wysiwyg.save().then(function (result) {
-            self._isDirty = result.isDirty;
-            _super();
+        return this.wysiwyg.saveCroppedImages(this.$content).then(function () {
+            return self.wysiwyg.save().then(function (result) {
+                self._isDirty = result.isDirty;
+                _super();
+            });
         });
     },
     /**
      * @override
      */
     isSet: function () {
-        return this.value && this.value !== "<p><br/></p>" && this.value.match(/\S/);
+        var value = this.value && this.value.split('&nbsp;').join('').replace(/\s/g, ''); // Removing spaces & html spaces
+        return value && value !== "<p></p>" && value !== "<p><br></p>" && value.match(/\S/);
     },
     /**
      * @override
@@ -186,6 +189,7 @@ var FieldHtml = basic_fields.DebouncedField.extend(TranslatableFieldMixin, {
      * @returns {Object}
      */
     _getWysiwygOptions: function () {
+        var self = this;
         return Object.assign({}, this.nodeOptions, {
             recordInfo: {
                 context: this.record.getContext(this.recordParams),
@@ -219,6 +223,9 @@ var FieldHtml = basic_fields.DebouncedField.extend(TranslatableFieldMixin, {
                     } else {
                         toolbar.splice(-1, 0, ['view', ['codeview']]);
                     }
+                }
+                if ("mailing.mailing" === self.model) {
+                    options.noVideos = true;
                 }
                 options.prettifyHtml = false;
                 return options;
